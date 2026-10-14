@@ -9,7 +9,7 @@
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
-import {changedOriginalLines, corpusFiles, fisherExact, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, percent, projectRoot, proposedVersion, publishedVersion, readJson, rerunTest, runChecked, shuffle, splitKey, toCsv, versionDir, versions, wilson, workDir, writeJson} from './lib.mjs';
+import {changedOriginalLines, corpusFiles, fisherExact, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, percent, projectRoot, proposedVersion, publishedVersion, readJson, regressionCandidates, rerunTest, runChecked, shuffle, splitKey, toCsv, versionDir, versions, wilson, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -51,7 +51,6 @@ const baseline = Object.fromEntries(versions.map(version => {
 	return [version, {tests: {}}];
 }));
 
-const knownFailing = new Set(Object.values(baseline).flatMap(result => Object.entries(result.tests).filter(([, passed]) => !passed).map(([name]) => name)));
 const scored = [];
 for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 	if (!versions.includes(version)) {
@@ -131,10 +130,9 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			}
 
 			const tests = readJson(output);
-			// A test that fails here but failed in either version's baseline, or passes on a rerun, is flaky, not a regression.
-			const failing = Object.entries(tests.tests)
-				.filter(([name, passed]) => !passed && !knownFailing.has(name) && !isHiddenTest(name))
-				.map(([name]) => name)
+			// A regression is a test that passed in this version's baseline and fails or is missing here, and
+			// fails every rerun. A test that passes a rerun is flaky. A failing test the baseline lacks is no regression.
+			const failing = regressionCandidates(baseline[version].tests, tests.tests)
 				.filter(name => rerunTest(run.directory, name) === 0);
 			row.typecheck = tests.typecheck;
 			row.testRegressions = failing.length;

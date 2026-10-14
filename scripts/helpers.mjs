@@ -39,6 +39,12 @@ export const parseTap = output => {
 	return tests;
 };
 
+// Tests that may be regressions: those that passed in the baseline and fail or are missing in the run.
+// A failing test the baseline lacks is not listed. Each candidate still needs a rerun to rule out flakiness.
+export const regressionCandidates = (baselineTests, runTests) => Object.entries(baselineTests)
+	.filter(([name, passed]) => passed && runTests[name] !== true)
+	.map(([name]) => name);
+
 // Summary of the agent's transcript (newline-delimited JSON events): final reply, cost, turns, and
 // the tools it used. A transcript with no result event ended early, so it counts as an error.
 export const summarizeTranscript = text => {

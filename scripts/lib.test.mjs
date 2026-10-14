@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {changedOriginalLines, fisherExact, fromCsv, interleave, key, listedLines, option, percent, shuffle, splitKey, toCsv, wilson} from './helpers.mjs';
+import {changedOriginalLines, fisherExact, fromCsv, interleave, key, listedLines, option, percent, regressionCandidates, shuffle, splitKey, toCsv, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -212,6 +212,16 @@ test('shuffle returns a permutation and leaves the input alone', () => {
 	const output = shuffle(input);
 	assert.deepEqual(input, [1, 2, 3, 4, 5]);
 	assert.deepEqual([...output].sort(), input);
+});
+
+test('regressionCandidates lists a baseline-passing test that fails or is missing in the run', () => {
+	const baseline = {'a › passes': true, 'a › fails': true, 'a › vanishes': true, 'a › was failing': false};
+	const run = {'a › passes': true, 'a › fails': false, 'a › was failing': false};
+	assert.deepEqual(regressionCandidates(baseline, run), ['a › fails', 'a › vanishes']);
+});
+
+test('regressionCandidates skips a failing test that the baseline lacks', () => {
+	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}), []);
 });
 
 test('wilson brackets the observed share and clamps to [0, 1]', () => {
