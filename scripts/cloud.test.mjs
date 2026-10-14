@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {applyDiff, cellKey, cloudPrompt, FireError, fireRoutine, fetchRunBranches, loadCloud, loadRoutines, readRunBranch, shellLine, startFiles} from './cloud.mjs';
+import {applyDiff, buildRunRepository, cellKey, cloudPrompt, FireError, fireRoutine, fetchRunBranches, loadCloud, loadRoutines, readRunBranch, shellLine, startFiles} from './cloud.mjs';
 import {diffSinceSnapshot, loadTasks, makeRunCopy} from './lib.mjs';
 
 const routine = {url: 'https://api.anthropic.com/v1/claude_code/routines/trig_ABC123/fire', token: 'sk-ant-oat01-secret'};
@@ -103,6 +103,21 @@ test('startFiles writes a start hook that runs the install and compile commands 
 	assert.equal(settings.hooks.SessionStart[0].hooks[0].command, 'bash "$CLAUDE_PROJECT_DIR/.claude/prepare.sh"');
 	assert.match(files['.claude/prepare.sh'], /\{ npm install && npm run build; \} >\/tmp\/prepare\.log 2>&1/);
 });
+
+test('buildRunRepository commits a version and the start files as one commit on the default branch, without dependencies', () => withScratch(scratch => {
+	const cloud = {defaultBranch: 'main'};
+	const source = path.join(scratch, 'source');
+	fs.mkdirSync(path.join(source, 'src'), {recursive: true});
+	fs.writeFileSync(path.join(source, 'src', 'a.ts'), 'export {};\n');
+	const directory = path.join(scratch, 'repository');
+	const head = buildRunRepository(source, directory, cloud, {'.claude/prepare.sh': 'echo hi\n'});
+	const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8'});
+	assert.equal(git('rev-parse', 'HEAD').trim(), head);
+	assert.equal(git('branch', '--show-current').trim(), 'main');
+	assert.equal(git('rev-list', '--count', 'HEAD').trim(), '1');
+	assert.deepEqual(git('ls-files').trim().split('\n'), ['.claude/prepare.sh', 'src/a.ts']);
+	assert.ok(!fs.existsSync(path.join(directory, 'node_modules')));
+}));
 
 test('fetchRunBranches and readRunBranch return the diff and the reply of a pushed run branch', () => withScratch(scratch => {
 	const cloud = {defaultBranch: 'main', runBranchPrefix: 'run-', replyFile: 'REPLY.md'};

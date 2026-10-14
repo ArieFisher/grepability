@@ -3,7 +3,7 @@
 // file, the fire request, the files that install dependencies on start, and the reading of a run branch.
 import fs from 'node:fs';
 import path from 'node:path';
-import {loadCodebase, loadTasks, projectRoot, readJson, runChecked, versions} from './lib.mjs';
+import {copyCodebase, loadCodebase, loadTasks, projectRoot, readJson, runChecked, versions} from './lib.mjs';
 
 // The routine file holds the repository address of each version and the address and token of each routine.
 // The file sits in work/, which git ignores, because the tokens are secrets.
@@ -127,6 +127,28 @@ export const startFiles = (codebase = loadCodebase()) => ({
 		'',
 	].join('\n'),
 });
+
+// Builds a run repository in a new directory: a version's files and the start files as one commit on the
+// default branch. The link to shared dependencies is removed, because the cloud session installs its own.
+// Returns the commit id.
+export const buildRunRepository = (source, directory, cloud, files = startFiles()) => {
+	copyCodebase(source, directory);
+	fs.rmSync(path.join(directory, 'node_modules'), {force: true});
+	for (const [file, content] of Object.entries(files)) {
+		fs.mkdirSync(path.dirname(path.join(directory, file)), {recursive: true});
+		fs.writeFileSync(path.join(directory, file), content);
+	}
+
+	const git = (...args) => runChecked('git', args, {cwd: directory});
+	git('init', '-q', '-b', cloud.defaultBranch);
+	git('add', '-A');
+	const commit = git('-c', 'user.name=snapshot', '-c', 'user.email=snapshot@example.invalid', 'commit', '-q', '-m', 'Snapshot');
+	if (commit.status !== 0) {
+		throw new Error(`git commit failed in ${directory}: ${commit.stderr.slice(-500)}`);
+	}
+
+	return git('rev-parse', 'HEAD').stdout.trim();
+};
 
 // Fetches every branch of a run repository into a bare cache repository, creating the cache on first use.
 export const fetchRunBranches = (cacheDirectory, url) => {
