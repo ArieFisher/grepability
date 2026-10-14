@@ -3,10 +3,9 @@
 // Writes results/search-score.{json,md} and results/misses-<version>.csv (the lines each search missed;
 // the published codebase's misses are the worklist for building the proposed codebase).
 // Usage: node search-score.mjs
-import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, splitKey, toCsv, versionDir, versions, writeJson} from './lib.mjs';
+import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, runChecked, splitKey, toCsv, versionDir, versions, writeJson} from './lib.mjs';
 
 const {concepts} = loadConcepts();
 const {corpus} = loadCodebase();
@@ -16,13 +15,20 @@ if (present.length === 0) {
 	throw new Error('No versions under work/: run scripts/setup.sh first. Nothing written to results/.');
 }
 
-const resultsDir = path.join(projectRoot, 'results');
-fs.mkdirSync(resultsDir, {recursive: true});
+// A run that scores fewer versions than the experiment compares says so in the output.
+const absent = versions.filter(version => !present.includes(version));
+const scope = absent.length > 0 ? `Scored ${present.join(' and ')} only: ${absent.join(' and ')} is not built.` : '';
+if (scope) {
+	console.warn(scope);
+}
 
+const resultsDir = path.join(projectRoot, 'results');
+
+// ripgrep exits 0 with hits, 1 with none, and 2 on an error. A missing program or a signal throws in runChecked.
 const search = (root, pattern) => {
-	const result = spawnSync('rg', ['--ignore-case', '--line-number', '--no-heading', '--with-filename', '--glob', `*${corpus.extension}`, '--regexp', pattern, corpus.directory], {cwd: root, encoding: 'utf8'});
+	const result = runChecked('rg', ['--ignore-case', '--line-number', '--no-heading', '--with-filename', '--glob', `*${corpus.extension}`, '--regexp', pattern, corpus.directory], {cwd: root});
 	if (result.status > 1) {
-		throw new Error(result.stderr);
+		throw new Error(`rg failed on ${pattern}: ${result.stderr}`);
 	}
 
 	return new Set(result.stdout.split('\n').filter(Boolean).map(line => {
@@ -36,10 +42,13 @@ const lineText = (root, rowKey) => {
 	return fs.readFileSync(path.join(root, file), 'utf8').split('\n')[line - 1].trim();
 };
 
+// Every search and line read finishes before any file is written, so a failure leaves results/ as it was.
 const results = [];
+const missesByVersion = new Map();
 for (const version of present) {
 	const root = versionDir(version);
 	const misses = [];
+	missesByVersion.set(version, misses);
 	for (const concept of concepts) {
 		const expected = new Set(truth.concepts[concept.id].all);
 		const hits = search(root, concept.search);
@@ -61,11 +70,13 @@ for (const version of present) {
 			misses.push([concept.id, file, number, truth.concepts[concept.id].names.includes(line) ? 'name' : 'text', lineText(root, line)]);
 		}
 	}
-
-	fs.writeFileSync(path.join(resultsDir, `misses-${version}.csv`), toCsv([['concept', 'file', 'line', 'source', 'text'], ...misses]));
 }
 
+fs.mkdirSync(resultsDir, {recursive: true});
 writeJson(path.join(resultsDir, 'search-score.json'), {provisionalTruth: truth.provisional, results});
+for (const [version, misses] of missesByVersion) {
+	fs.writeFileSync(path.join(resultsDir, `misses-${version}.csv`), toCsv([['concept', 'file', 'line', 'source', 'text'], ...misses]));
+}
 
 const rows = concepts.map(concept => {
 	const cells = present.flatMap(version => {
@@ -79,6 +90,7 @@ const markdown = [
 	'# Search score',
 	'',
 	truth.provisional ? `Ground truth is provisional: ${truth.unresolvedDisagreements} reviewer disagreements are unresolved.` : 'Ground truth is final.',
+	...(scope ? ['', scope] : []),
 	'',
 	header,
 	`|${'---|'.repeat(2 + (present.length * 2))}`,

@@ -3,6 +3,7 @@
 		"command": "claude",
 		"model": "sonnet",
 		"maxBudgetUsd": 5,
+		"timeoutMinutes": 30,
 		"allowedTools": [
 			"Read",
 			"Grep",

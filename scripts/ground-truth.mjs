@@ -7,20 +7,32 @@
 // Usage: node ground-truth.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, relative, splitKey, toCsv, versionDir, writeJson} from './lib.mjs';
+import {checkReviewers, createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, relative, runChecked, splitKey, toCsv, versionDir, writeJson} from './lib.mjs';
 
 const root = versionDir(publishedVersion);
 const {concepts} = loadConcepts();
-const service = createService(root);
 const truthDir = path.join(projectRoot, 'truth');
 
-// Names in code.
+// The ground truth records the commit it was built on, so the checkout must be that commit.
+const checkedOut = runChecked('git', ['rev-parse', 'HEAD'], {cwd: root}).stdout.trim();
+if (checkedOut !== loadCodebase().commit) {
+	throw new Error(`${root} is at ${checkedOut}, not the pinned commit ${loadCodebase().commit}. Run scripts/setup.sh.`);
+}
+
+const service = createService(root);
+
+// Names in code. A seed that the type checker resolves to no reference means a wrong file, line, or name.
 const identifierLines = new Map(concepts.map(concept => [concept.id, new Set()]));
 for (const concept of concepts) {
 	for (const seed of concept.seeds) {
 		const position = positionOf(root, seed.file, seed.line, seed.name, seed.nth ?? 0);
 		identifierLines.get(concept.id).add(key(seed.file, seed.line));
-		for (const symbol of service.findReferences(path.join(root, seed.file), position) ?? []) {
+		const symbols = service.findReferences(path.join(root, seed.file), position) ?? [];
+		if (symbols.every(symbol => symbol.references.length === 0)) {
+			throw new Error(`Seed ${seed.name} at ${seed.file}:${seed.line} of concept ${concept.id} resolves to no references.`);
+		}
+
+		for (const symbol of symbols) {
 			for (const reference of symbol.references) {
 				const file = relative(root, reference.fileName);
 				if (inCorpus(file)) {
@@ -42,7 +54,8 @@ const reviewers = reviewerFiles.map(file => ({
 	tags: new Map(fromCsv(fs.readFileSync(path.join(truthDir, file), 'utf8'))
 		.map(row => [key(row.file, row.line), {row, ids: new Set(row.concepts.split(/\s+/).filter(Boolean))}])),
 }));
-const rowKeys = [...reviewers[0].tags.keys()];
+const rowKeys = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'), 'utf8')).map(row => key(row.file, row.line));
+checkReviewers(rowKeys, reviewers, new Set(concepts.map(concept => concept.id)));
 const adjudicationFile = path.join(truthDir, 'adjudication.csv');
 const adjudication = new Map(fs.existsSync(adjudicationFile)
 	? fromCsv(fs.readFileSync(adjudicationFile, 'utf8')).map(row => [`${key(row.file, row.line)}|${row.concept}`, row.decision.trim().toLowerCase()])

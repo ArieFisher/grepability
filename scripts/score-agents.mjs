@@ -7,10 +7,9 @@
 // Without --skip-tests, every run's copy and both versions' baseline test results must be present;
 // a missing one stops the script rather than scoring the run on line coverage alone.
 // Usage: node score-agents.mjs [--skip-tests]
-import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {changedOriginalLines, corpusFiles, fisherExact, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, percent, projectRoot, proposedVersion, publishedVersion, readJson, rerunTest, shuffle, splitKey, toCsv, versionDir, versions, wilson, workDir, writeJson} from './lib.mjs';
+import {changedOriginalLines, corpusFiles, fisherExact, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, percent, projectRoot, proposedVersion, publishedVersion, readJson, rerunTest, runChecked, shuffle, splitKey, toCsv, versionDir, versions, wilson, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -59,7 +58,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		wallSeconds: Math.round(run.wallMs / 1000),
 		costUsd: run.costUsd,
 		turns: run.turns,
-		agentError: run.isError || run.exitCode !== 0,
+		agentError: run.isError || run.exitCode !== 0 || Boolean(run.runError),
 		searchCalls: Object.entries(run.toolCounts).filter(([tool]) => /^(Grep|Glob|Bash:(rg|grep))$/.test(tool)).reduce((sum, [, count]) => sum + count, 0),
 		readCalls: run.toolCounts.Read ?? 0,
 		tools: JSON.stringify(run.toolCounts),
@@ -109,8 +108,15 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 				fs.copyFileSync(path.join(projectRoot, task.hiddenTest), hiddenTestPath(run.directory));
 			}
 
+			// An old result file is removed first, so a failed run cannot be scored from a stale one. Exit
+			// status 1 with a fresh file means the type check failed, which is a result; no file means the run failed.
 			const output = path.join(runDir, 'tests.json');
-			spawnSync('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), run.directory, output], {stdio: 'inherit'});
+			fs.rmSync(output, {force: true});
+			runChecked('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), run.directory, output], {stdio: 'inherit'});
+			if (!fs.existsSync(output)) {
+				throw new Error(`Run ${runId}: the test run wrote no result in ${output}.`);
+			}
+
 			const tests = readJson(output);
 			// A test that fails here but failed in either version's baseline, or passes on a rerun, is flaky, not a regression.
 			const failing = Object.entries(tests.tests)

@@ -7,7 +7,7 @@
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fromCsv, loadConcepts, loadTasks, option, projectRoot, publishedVersion, toCsv, versionDir} from './lib.mjs';
+import {acceptTags, fromCsv, integerOption, loadConcepts, loadTasks, option, projectRoot, publishedVersion, toCsv, versionDir} from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const name = argv[0];
@@ -18,9 +18,15 @@ if (!name || name.startsWith('--')) {
 // The reviewer runs the same command and model as the agent, so one place names them.
 const {agent} = loadTasks();
 const model = option(argv, 'model', agent.model);
-const chunkSize = Number(option(argv, 'chunk', 120));
-const parallel = Number(option(argv, 'parallel', 4));
-const contextLines = Number(option(argv, 'context', 3));
+const chunkSize = integerOption(argv, 'chunk', 120, 1);
+const parallel = integerOption(argv, 'parallel', 4, 1);
+const contextLines = integerOption(argv, 'context', 3, 0);
+// A hand-tagged file under this name would be lost to a rerun, so an existing file stops the script.
+// Remove the file, or pick another reviewer name, to run again.
+const output = path.join(projectRoot, 'truth', `reviewer-${name}.csv`);
+if (fs.existsSync(output)) {
+	throw new Error(`${output} exists. Remove it or pick another reviewer name.`);
+}
 const {concepts} = loadConcepts();
 const rows = fromCsv(fs.readFileSync(path.join(projectRoot, 'truth', 'review-sheet.csv'), 'utf8'));
 const conceptText = concepts.map(concept => `- ${concept.id}: ${concept.name}. ${concept.definition}`).join('\n');
@@ -76,26 +82,17 @@ const ask = text => new Promise((resolve, reject) => {
 			return;
 		}
 
-		resolve(JSON.parse(stdout));
+		try {
+			resolve(JSON.parse(stdout));
+		} catch (error) {
+			reject(new Error(`${agent.command} printed output that is not JSON: ${error.message}`));
+		}
+	});
+	child.on('error', error => {
+		reject(new Error(`${agent.command} did not start: ${error.message}`));
 	});
 	child.stdin.end(text);
 });
-
-// Replies hold flat objects of arrays. If the model corrects itself, the last object wins.
-const parseTags = result => {
-	const objects = (result.match(/\{[^{}]*\}/g) ?? []).flatMap(text => {
-		try {
-			return [JSON.parse(text)];
-		} catch {
-			return [];
-		}
-	});
-	if (objects.length === 0) {
-		throw new Error(`No JSON object in reply: ${result.slice(0, 300)}`);
-	}
-
-	return objects.at(-1);
-};
 
 const indexed = rows.map((row, index) => ({index, row}));
 const chunks = [];
@@ -116,8 +113,9 @@ const worker = async () => {
 				// eslint-disable-next-line no-await-in-loop
 				const reply = await ask(prompt(chunks[chunkIndex]));
 				cost += reply.total_cost_usd ?? 0;
-				for (const [index, ids] of Object.entries(parseTags(reply.result))) {
-					tags.set(Number(index), ids.filter(id => validIds.has(id)));
+				const chunkItems = new Set(chunks[chunkIndex].map(item => item.index));
+				for (const [index, ids] of acceptTags(reply.result, chunkItems, validIds)) {
+					tags.set(index, ids);
 				}
 
 				console.log(`${name}: chunk ${chunkIndex + 1}/${chunks.length} done`);
@@ -136,7 +134,6 @@ const worker = async () => {
 
 await Promise.all(Array.from({length: parallel}, worker));
 
-const output = path.join(projectRoot, 'truth', `reviewer-${name}.csv`);
 fs.writeFileSync(output, toCsv([
 	['file', 'line', 'kind', 'concepts', 'text'],
 	...rows.map((row, index) => [row.file, row.line, row.kind, (tags.get(index) ?? []).join(' '), row.text]),

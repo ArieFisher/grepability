@@ -6,15 +6,21 @@ import {execFileSync, spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {copyCodebase, interleave, loadCodebase, loadTasks, maxOutputBytes, option, readJson, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {copyCodebase, integerOption, interleave, loadCodebase, loadTasks, maxOutputBytes, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const config = loadTasks();
-const runsPerCell = Number(option(argv, 'runs', 10));
+const runsPerCell = integerOption(argv, 'runs', 10, 1);
 const taskIds = option(argv, 'tasks', config.tasks.map(task => task.id).join(',')).split(',');
 const selectedVersions = option(argv, 'versions', versions.join(',')).split(',');
-const parallel = Number(option(argv, 'parallel', 2));
+const parallel = integerOption(argv, 'parallel', 2, 1);
 const model = option(argv, 'model', config.agent.model);
+// Time cap per run. The budget cap bounds spending but not a hung process. At the cap the script
+// kills the agent, records the run as an error, and goes on to the next run.
+const timeoutMinutes = config.agent.timeoutMinutes;
+if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 1) {
+	throw new Error('config/tasks.json: agent.timeoutMinutes must be a whole number of at least 1');
+}
 const runsDir = path.join(workDir, 'runs');
 const keyFile = path.join(runsDir, 'key.json');
 fs.mkdirSync(runsDir, {recursive: true});
@@ -56,57 +62,37 @@ const runAgent = (task, directory, logFile) => new Promise(resolve => {
 	const started = Date.now();
 	const log = fs.createWriteStream(logFile);
 	const child = spawn(config.agent.command, args, {cwd: directory, stdio: ['ignore', 'pipe', 'pipe']});
-	child.stdout.pipe(log);
+	child.stdout.pipe(log, {end: false});
 	let stderr = '';
+	let runError;
 	child.stderr.on('data', data => {
 		stderr += data;
 	});
-	child.on('close', code => {
-		log.end();
-		resolve({exitCode: code, wallMs: Date.now() - started, stderr: stderr.slice(0, 2000)});
+	log.on('error', error => {
+		runError = `transcript write failed: ${error.message}`;
 	});
-});
-
-// Summarizes the agent's transcript: final reply, cost, turns, and which tools it used.
-const summarizeTranscript = logFile => {
-	const toolCounts = {};
-	let result = {};
-	for (const line of fs.readFileSync(logFile, 'utf8').split('\n')) {
-		if (!line.trim()) {
-			continue;
+	const timer = setTimeout(() => {
+		runError = `killed after ${timeoutMinutes} minutes`;
+		child.kill('SIGKILL');
+	}, timeoutMinutes * 60_000);
+	// The result goes out once the transcript file has closed, so the summary reads the last event.
+	let finished = false;
+	const finish = exitCode => {
+		if (finished) {
+			return;
 		}
 
-		let event;
-		try {
-			event = JSON.parse(line);
-		} catch {
-			continue;
-		}
-
-		if (event.type === 'assistant') {
-			for (const block of event.message?.content ?? []) {
-				if (block.type === 'tool_use') {
-					const command = block.name === 'Bash' ? String(block.input?.command ?? '').trim().split(/\s+/)[0] : '';
-					const label = command ? `Bash:${command}` : block.name;
-					toolCounts[label] = (toolCounts[label] ?? 0) + 1;
-				}
-			}
-		}
-
-		if (event.type === 'result') {
-			result = event;
-		}
-	}
-
-	return {
-		finalText: result.result ?? '',
-		costUsd: result.total_cost_usd ?? null,
-		turns: result.num_turns ?? null,
-		durationMs: result.duration_ms ?? null,
-		isError: Boolean(result.is_error),
-		toolCounts,
+		finished = true;
+		clearTimeout(timer);
+		log.end(() => resolve({exitCode, wallMs: Date.now() - started, stderr: stderr.slice(0, 2000), runError}));
 	};
-};
+
+	child.on('error', error => {
+		runError = `agent did not start: ${error.message}`;
+		finish(null);
+	});
+	child.on('close', code => finish(code));
+});
 
 const jobs = [];
 for (const taskId of taskIds) {
@@ -137,13 +123,23 @@ const worker = async () => {
 		const {directory, snapshot} = makeCopy(version, runId);
 		// eslint-disable-next-line no-await-in-loop
 		const outcome = await runAgent(task, directory, path.join(runDir, 'transcript.jsonl'));
-		const summary = summarizeTranscript(path.join(runDir, 'transcript.jsonl'));
-		fs.writeFileSync(path.join(runDir, 'diff.patch'), diffSinceSnapshot(directory, snapshot));
+		const summary = summarizeTranscript(fs.readFileSync(path.join(runDir, 'transcript.jsonl'), 'utf8'));
+		// An agent that deleted the copy's .git leaves no diff to take. The run is recorded as an error with an empty diff.
+		let diff = '';
+		let diffError;
+		try {
+			diff = diffSinceSnapshot(directory, snapshot);
+		} catch (error) {
+			diffError = `diff failed: ${error.message.split('\n')[0]}`;
+		}
+
+		fs.writeFileSync(path.join(runDir, 'diff.patch'), diff);
 		fs.writeFileSync(path.join(runDir, 'final.md'), summary.finalText);
-		writeJson(path.join(runDir, 'run.json'), {runId, task: task.id, directory, snapshot, model, ...outcome, ...summary, finalText: undefined});
+		const runError = [outcome.runError, diffError].filter(Boolean).join('; ') || undefined;
+		writeJson(path.join(runDir, 'run.json'), {runId, task: task.id, directory, snapshot, model, ...outcome, ...summary, runError, finalText: undefined});
 		key[runId] = {version, task: task.id, index};
 		writeJson(keyFile, key);
-		console.log(`${runId}: ${task.id} done in ${Math.round(outcome.wallMs / 1000)}s, $${summary.costUsd?.toFixed(2) ?? '?'}${outcome.exitCode === 0 ? '' : `, exit ${outcome.exitCode}`}`);
+		console.log(`${runId}: ${task.id} done in ${Math.round(outcome.wallMs / 1000)}s, $${summary.costUsd?.toFixed(2) ?? '?'}${outcome.exitCode === 0 ? '' : `, exit ${outcome.exitCode}`}${runError ? `, ${runError}` : ''}`);
 	}
 };
 

@@ -68,12 +68,30 @@ export const corpusFiles = root => {
 // Whether a repo-relative file:line key or path lies in the corpus.
 export const inCorpus = fileOrKey => fileOrKey.startsWith(`${loadCodebase().corpus.directory}/`);
 
+// Runs a command and returns its result. A command that cannot start (missing program, no
+// permission, output past the cap) throws, because a null exit status reads as "no output" otherwise.
+// A command that runs and exits non-zero returns normally; the caller reads `status`.
+export const runChecked = (command, args, options = {}) => {
+	const result = spawnSync(command, args, {encoding: 'utf8', maxBuffer: maxOutputBytes, ...options});
+	if (result.error || result.status === null) {
+		throw new Error(`${command} did not run to the end: ${result.error?.message ?? `signal ${result.signal}`}`);
+	}
+
+	return result;
+};
+
 // Language service over the project's own tsconfig.json, so references match what the compiler sees.
-// Files can be overridden in memory (used when applying renames).
+// Files can be overridden in memory (used when applying renames). A tsconfig that is missing or has
+// errors stops here, because a service over the wrong file list finds the wrong references.
 export const createService = (root, overrides = new Map()) => {
 	const configPath = path.join(root, 'tsconfig.json');
 	const config = ts.readConfigFile(configPath, ts.sys.readFile);
-	const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root, {noEmit: true}, configPath);
+	const parsed = ts.parseJsonConfigFileContent(config.config ?? {}, ts.sys, root, {noEmit: true}, configPath);
+	const errors = [config.error, ...parsed.errors].filter(Boolean);
+	if (errors.length > 0) {
+		throw new Error(`tsconfig ${configPath} has errors: ${errors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('; ')}`);
+	}
+
 	const files = parsed.fileNames;
 	const host = {
 		getScriptFileNames: () => files,
@@ -203,8 +221,7 @@ export const rerunCount = 3;
 // Reruns one test a few times by its TAP title; returns how many runs passed. The codebase's rerun
 // command is a template: {file} is the test file the title starts with, {name} the rest of the title.
 // A `*` in the name is escaped so a runner that matches names as globs takes it literally.
-export const rerunTest = (root, title, times = rerunCount) => {
-	const {tests} = loadCodebase();
+export const rerunTest = (root, title, times = rerunCount, tests = loadCodebase().tests) => {
 	const [file, ...nameParts] = title.split(tests.titleSeparator);
 	const name = nameParts.join(tests.titleSeparator).replaceAll('*', String.raw`\*`);
 	const [command, ...args] = tests.rerun.map(part => part
@@ -212,7 +229,7 @@ export const rerunTest = (root, title, times = rerunCount) => {
 		.replaceAll('{name}', name));
 	let passed = 0;
 	for (let i = 0; i < times; i++) {
-		const result = spawnSync(command, args, {cwd: root, encoding: 'utf8'});
+		const result = runChecked(command, args, {cwd: root});
 		if (result.status === 0 && /^ok \d+ /m.test(result.stdout)) {
 			passed++;
 		}

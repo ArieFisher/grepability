@@ -15,6 +15,129 @@ export const option = (argv, name, fallback) => {
 	return index === -1 ? fallback : argv[index + 1];
 };
 
+// A whole number option of at least `minimum`. Text, fractions, and small values stop the script,
+// because Number() turns them into NaN or a value that makes a loop run nothing or run forever.
+export const integerOption = (argv, name, fallback, minimum) => {
+	const value = Number(option(argv, name, fallback));
+	if (!Number.isInteger(value) || value < minimum) {
+		throw new Error(`--${name} must be a whole number of at least ${minimum}`);
+	}
+
+	return value;
+};
+
+// Test results from TAP output: title to pass or fail. SKIP and TODO results carry no verdict.
+export const parseTap = output => {
+	const tests = {};
+	for (const line of output.split('\n')) {
+		const match = /^(not ok|ok) \d+ - (.+?)(?: # (SKIP|TODO).*)?$/.exec(line);
+		if (match && !match[3]) {
+			tests[match[2]] = match[1] === 'ok';
+		}
+	}
+
+	return tests;
+};
+
+// Summary of the agent's transcript (newline-delimited JSON events): final reply, cost, turns, and
+// the tools it used. A transcript with no result event ended early, so it counts as an error.
+export const summarizeTranscript = text => {
+	const toolCounts = {};
+	let result;
+	for (const line of text.split('\n')) {
+		if (!line.trim()) {
+			continue;
+		}
+
+		let event;
+		try {
+			event = JSON.parse(line);
+		} catch {
+			continue;
+		}
+
+		if (event.type === 'assistant') {
+			for (const block of event.message?.content ?? []) {
+				if (block.type === 'tool_use') {
+					const command = block.name === 'Bash' ? String(block.input?.command ?? '').trim().split(/\s+/)[0] : '';
+					const label = command ? `Bash:${command}` : block.name;
+					toolCounts[label] = (toolCounts[label] ?? 0) + 1;
+				}
+			}
+		}
+
+		if (event.type === 'result') {
+			result = event;
+		}
+	}
+
+	return {
+		finalText: result?.result ?? '',
+		costUsd: result?.total_cost_usd ?? null,
+		turns: result?.num_turns ?? null,
+		durationMs: result?.duration_ms ?? null,
+		isError: result === undefined || Boolean(result.is_error),
+		toolCounts,
+	};
+};
+
+// The tags in an AI reviewer's reply, as an object of item number to concept ids. The reply holds
+// flat JSON objects of arrays; if the reviewer corrects itself, the last object wins.
+export const parseTags = reply => {
+	const objects = (reply.match(/\{[^{}]*\}/g) ?? []).flatMap(text => {
+		try {
+			return [JSON.parse(text)];
+		} catch {
+			return [];
+		}
+	});
+	if (objects.length === 0) {
+		throw new Error(`No JSON object in reply: ${reply.slice(0, 300)}`);
+	}
+
+	return objects.at(-1);
+};
+
+// Tags for the items of one chunk. An item number outside the chunk, or a tag list that is not an
+// array, stops the chunk so the caller retries it. Concept ids that no concept has are dropped.
+export const acceptTags = (reply, chunkItems, conceptIds) => {
+	const tags = new Map();
+	for (const [item, ids] of Object.entries(parseTags(reply))) {
+		if (!chunkItems.has(Number(item)) || !Array.isArray(ids)) {
+			throw new Error(`Reply tags item ${item}, which is not an item of this chunk or has no list of concept ids`);
+		}
+
+		tags.set(Number(item), ids.filter(id => conceptIds.has(id)));
+	}
+
+	return tags;
+};
+
+// Stops the ground truth build on reviewer files it cannot trust: fewer than two reviewers, rows
+// that differ from the review sheet's, or a tag no concept has. Each reviewer is {name, tags}, where
+// tags maps a file:line key to {ids: Set of concept ids}.
+export const checkReviewers = (sheetKeys, reviewers, conceptIds) => {
+	if (reviewers.length < 2) {
+		throw new Error(`The ground truth needs at least two reviewers; found ${reviewers.length}.`);
+	}
+
+	const expected = new Set(sheetKeys);
+	for (const {name, tags} of reviewers) {
+		const missing = sheetKeys.filter(rowKey => !tags.has(rowKey));
+		const extra = [...tags.keys()].filter(rowKey => !expected.has(rowKey));
+		if (missing.length > 0 || extra.length > 0) {
+			throw new Error(`Reviewer ${name} does not match the review sheet. Missing: ${missing.slice(0, 5).join(', ') || 'none'}. Not on the sheet: ${extra.slice(0, 5).join(', ') || 'none'}.`);
+		}
+
+		for (const [rowKey, {ids}] of tags) {
+			const unknown = [...ids].filter(id => !conceptIds.has(id));
+			if (unknown.length > 0) {
+				throw new Error(`Reviewer ${name} tags ${rowKey} with unknown concept ids: ${unknown.join(', ')}.`);
+			}
+		}
+	}
+};
+
 // A share between 0 and 1 as a whole percent; n/a when there is no share.
 export const percent = value => value === null ? 'n/a' : `${Math.round(value * 100)}%`;
 
