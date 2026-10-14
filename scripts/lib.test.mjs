@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, median, missingRuns, option, percent, readWrongEdits, regressionCandidates, shellCommandNames, shuffle, splitKey, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
+import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, median, missingRuns, option, percent, readWrongEdits, regressionCandidates, runMeasures, shellCommandNames, shuffle, splitKey, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -224,6 +224,16 @@ test('interleave puts one job from every cell in each round', () => {
 		const cells = ordered.slice(round * 3, (round * 3) + 3).map(job => job.cell).sort();
 		assert.deepEqual(cells, ['a', 'b', 'c']);
 	}
+});
+
+test('runMeasures reads time, cost, turns, and tool counts of a local run', () => {
+	const run = {wallMs: 90_400, costUsd: 0.5, turns: 7, toolCounts: {Read: 3, Grep: 2, 'Bash:rg': 1, 'Bash:cat': 4}};
+	assert.deepEqual(runMeasures(run), {wallSeconds: 90, costUsd: 0.5, turns: 7, searchCalls: 3, readCalls: 3, tools: JSON.stringify(run.toolCounts)});
+});
+
+test('runMeasures gives null for what a cloud run does not report', () => {
+	const run = {wallMs: null, costUsd: null, turns: null, toolCounts: null};
+	assert.deepEqual(runMeasures(run), {wallSeconds: null, costUsd: null, turns: null, searchCalls: null, readCalls: null, tools: ''});
 });
 
 test('missingRuns lists the runs each cell still needs, numbered after the runs done', () => {

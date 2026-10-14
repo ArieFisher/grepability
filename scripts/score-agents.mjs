@@ -10,7 +10,7 @@
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
-import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, readJson, regressionCandidates, rerunTest, runChecked, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, readJson, regressionCandidates, rerunTest, runChecked, runMeasures, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -68,13 +68,8 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		runId,
 		version,
 		task: taskId,
-		wallSeconds: Math.round(run.wallMs / 1000),
-		costUsd: run.costUsd,
-		turns: run.turns,
 		agentError: run.isError || run.exitCode !== 0 || Boolean(run.runError),
-		searchCalls: Object.entries(run.toolCounts).filter(([tool]) => /^(Grep|Glob|Bash:(rg|grep))$/.test(tool)).reduce((sum, [, count]) => sum + count, 0),
-		readCalls: run.toolCounts.Read ?? 0,
-		tools: JSON.stringify(run.toolCounts),
+		...runMeasures(run),
 	};
 
 	if (task.kind === 'find') {

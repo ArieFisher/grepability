@@ -205,6 +205,20 @@ export const shuffle = items => {
 	return result;
 };
 
+// What a run's record says about its time, cost, turns, and tool use. A cloud run reports none of these,
+// so each is null there (an empty string for the tool list) and the summary shows n/a.
+export const runMeasures = run => {
+	const counts = run.toolCounts;
+	return {
+		wallSeconds: typeof run.wallMs === 'number' ? Math.round(run.wallMs / 1000) : null,
+		costUsd: run.costUsd ?? null,
+		turns: run.turns ?? null,
+		searchCalls: counts ? Object.entries(counts).filter(([tool]) => /^(Grep|Glob|Bash:(rg|grep))$/.test(tool)).reduce((sum, [, count]) => sum + count, 0) : null,
+		readCalls: counts ? counts.Read ?? 0 : null,
+		tools: counts ? JSON.stringify(counts) : '',
+	};
+};
+
 // The runs each cell (task and version) still needs to reach `runsPerCell`. `done(task, version)` gives the
 // number of runs the cell already has; new runs are numbered after them.
 export const missingRuns = (tasks, versionNames, runsPerCell, done) => tasks.flatMap(task => versionNames.flatMap(version => {
