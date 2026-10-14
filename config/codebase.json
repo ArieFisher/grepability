@@ -5,6 +5,7 @@
 		"directory": "source",
 		"extension": ".ts"
 	},
+	"install": ["npm", "install", "--ignore-scripts", "--no-audit", "--no-fund"],
 	"compile": ["npm", "run", "build"],
 	"typecheck": [
 		["npx", "tsc", "--project", "tsconfig.json", "--noEmit"],

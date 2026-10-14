@@ -12,6 +12,11 @@ test('the codebase configuration holds a compile command', () => {
 	assert.ok(Array.isArray(compile) && compile.length > 0 && compile.every(part => typeof part === 'string'));
 });
 
+test('the codebase configuration holds an install command', () => {
+	const {install} = loadCodebase();
+	assert.ok(Array.isArray(install) && install.length > 0 && install.every(part => typeof part === 'string'));
+});
+
 test('compileCodebase runs the compile command in the directory it is given', () => {
 	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'compile-'));
 	try {
