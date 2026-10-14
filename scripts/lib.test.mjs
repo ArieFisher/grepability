@@ -114,7 +114,7 @@ test('copyCodebase copies files, leaves out node_modules and .git, and links the
 });
 
 test('listedLines reads single lines, ranges, and bare file names from the last fenced block', () => {
-	const known = ['source/core/client.ts', 'source/types/retry.ts'];
+	const known = new Map([['source/core/client.ts', 1000], ['source/types/retry.ts', 100]]);
 	const reply = [
 		'Here is a draft:',
 		'```',
@@ -140,8 +140,34 @@ test('listedLines reads single lines, ranges, and bare file names from the last 
 });
 
 test('listedLines keeps an unknown or ambiguous file name as written', () => {
-	const known = ['source/a/index.ts', 'source/b/index.ts'];
+	const known = new Map([['source/a/index.ts', 50], ['source/b/index.ts', 50]]);
 	assert.deepEqual([...listedLines('index.ts:3 and other.ts:4', known)].sort(), ['index.ts:3', 'other.ts:4']);
+});
+
+const listed = (text, lineCount = 20) => [...listedLines(text, new Map([['source/a.ts', lineCount]]))].sort();
+
+test('listedLines does not let a range cross a line break', () => {
+	assert.deepEqual(listed('source/a.ts:5\n- 10 more reasons'), ['source/a.ts:5']);
+	assert.deepEqual(listed('source/a.ts:5\n10'), ['source/a.ts:5']);
+});
+
+test('listedLines clips a range to the length of the file', () => {
+	assert.deepEqual(listed('source/a.ts:18-25'), ['source/a.ts:18', 'source/a.ts:19', 'source/a.ts:20']);
+	assert.equal(listed('source/a.ts:1-3000000').length, 20);
+	assert.deepEqual(listed('source/a.ts:30-40'), []);
+});
+
+test('listedLines ignores a descending range', () => {
+	assert.deepEqual(listed('source/a.ts:9-3'), []);
+});
+
+test('listedLines reads a comma list as separate lines and ranges', () => {
+	assert.deepEqual(listed('source/a.ts:5, 7, 9-10'), ['source/a.ts:10', 'source/a.ts:5', 'source/a.ts:7', 'source/a.ts:9']);
+	assert.deepEqual([...listedLines('source/a.ts:5, source/b.ts:7')].sort(), ['source/a.ts:5', 'source/b.ts:7']);
+});
+
+test('listedLines keeps only the first line of a range in a file it has no length for', () => {
+	assert.deepEqual([...listedLines('other.ts:4-6')], ['other.ts:4']);
 });
 
 test('changedOriginalLines maps hunks to old-side lines and ignores new files', () => {

@@ -20,10 +20,23 @@ const runKey = readJson(path.join(runsDir, 'key.json'));
 const resultsDir = path.join(projectRoot, 'results');
 fs.mkdirSync(resultsDir, {recursive: true});
 
-// Files an agent may name in a find reply: the version's corpus when present, else every file in the truth.
-const knownFiles = fs.existsSync(path.join(versionDir(publishedVersion), loadCodebase().corpus.directory))
-	? corpusFiles(versionDir(publishedVersion))
-	: [...new Set(Object.values(truth.concepts).flatMap(entry => entry.all.map(line => splitKey(line).file)))];
+// Files an agent may name in a find reply, each with its line count: the published codebase's corpus
+// when present. Without the checkout, every file in the truth, counted up to its highest truth line;
+// a range past that line holds no truth line, so clipping it loses nothing.
+const publishedRoot = versionDir(publishedVersion);
+const knownFiles = new Map();
+if (fs.existsSync(path.join(publishedRoot, loadCodebase().corpus.directory))) {
+	for (const file of corpusFiles(publishedRoot)) {
+		knownFiles.set(file, fs.readFileSync(path.join(publishedRoot, file), 'utf8').split('\n').length);
+	}
+} else {
+	for (const entry of Object.values(truth.concepts)) {
+		for (const line of entry.all) {
+			const {file, line: number} = splitKey(line);
+			knownFiles.set(file, Math.max(knownFiles.get(file) ?? 0, number));
+		}
+	}
+}
 
 const baseline = Object.fromEntries(versions.map(version => {
 	const file = path.join(workDir, `tests-${version}.json`);

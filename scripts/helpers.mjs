@@ -190,27 +190,41 @@ export const changedOriginalLines = diff => {
 };
 
 // Lines an agent listed in its reply, as file:line keys. Reads the last fenced block, or the whole
-// reply if there is none. Accepts `path:N`, `path:N-M` ranges, and paths given without their
-// `source/` prefix or as a bare file name, resolved against `knownFiles` when the match is unique.
-export const listedLines = (text, knownFiles = []) => {
+// reply if there is none. Accepts `path:N`, `path:N-M` ranges, comma lists such as `path:5, 7, 9-10`,
+// and paths given without their `source/` prefix or as a bare file name. `knownFiles` maps each
+// known file to its line count; a name resolves to a known file when the match is unique.
+// A range stops at the end of its file, so a range cannot name lines that do not exist, and a range
+// whose end lies before its start names nothing. A range in a file with no known line count names its
+// first line only, because nothing bounds it. A range or list never crosses a line break.
+export const listedLines = (text, knownFiles = new Map()) => {
 	const blocks = [...text.matchAll(/```[^\n]*\n([\s\S]*?)```/g)];
 	const body = blocks.length > 0 ? blocks.at(-1)[1] : text;
+	const names = [...knownFiles.keys()];
 	const resolve = file => {
-		if (knownFiles.includes(file)) {
+		if (knownFiles.has(file)) {
 			return file;
 		}
 
-		const matches = knownFiles.filter(known => known.endsWith(`/${file}`));
+		const matches = names.filter(known => known.endsWith(`/${file}`));
 		return matches.length === 1 ? matches[0] : file;
 	};
 
+	const lineSpan = String.raw`\d+(?:[ \t]*[-–][ \t]*\d+)?`;
+	const pattern = new RegExp(String.raw`([\w./-]+\.ts):(${lineSpan}(?:[ \t]*,[ \t]*${lineSpan})*)`, 'g');
 	const result = new Set();
-	for (const match of body.matchAll(/([\w./-]+\.ts):(\d+)(?:\s*[-–]\s*(\d+))?/g)) {
+	for (const match of body.matchAll(pattern)) {
 		const file = resolve(match[1].replace(/^\.\//, ''));
-		const first = Number(match[2]);
-		const last = match[3] === undefined ? first : Number(match[3]);
-		for (let line = first; line <= last; line++) {
-			result.add(key(file, line));
+		const lineCount = knownFiles.get(file);
+		for (const span of match[2].split(',')) {
+			const [first, last = first] = span.split(/[-–]/).map(Number);
+			if (first > last) {
+				continue;
+			}
+
+			const end = lineCount === undefined ? first : Math.min(last, lineCount);
+			for (let line = Math.max(first, 1); line <= end; line++) {
+				result.add(key(file, line));
+			}
 		}
 	}
 
