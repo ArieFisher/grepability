@@ -45,7 +45,7 @@ One term per concept, used in every document, comment, test name, commit message
 
 | Term | Meaning | Retired |
 |---|---|---|
-| agent | The coding agent command line, run once per task in a run copy with a fixed model, budget, and tool allowlist. | AI, assistant, model, bot, coding agent |
+| agent | The coding agent command line, run once per task in a run copy with a fixed model, budget, time cap, and tool allowlist. | AI, assistant, model, bot, coding agent |
 | task | One prompt the agent gets, tied to one concept. A find task requires a list of lines in the reply. An edit task requires a change to the code. | job, prompt, exercise, problem |
 | find task | A task scored on the lines the agent lists in its reply. | search task, list task, locate task |
 | edit task | A task scored on the lines the agent changed, plus the type check, the tests, and the hidden test when the task has one. | change task, modify task, refactor task |
