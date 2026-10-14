@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, median, missingRuns, option, percent, readWrongEdits, regressionCandidates, runMeasures, shellCommandNames, shuffle, splitKey, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
+import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readWrongEdits, regressionCandidates, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -369,6 +369,21 @@ test('fisherExact matches known values', () => {
 	assert.ok(Math.abs(fisherExact(0, 10, 9, 1) - 0.000_119_08) < 1e-7);
 	assert.ok(Math.abs(fisherExact(9, 1, 6, 4) - 0.303) < 0.002);
 	assert.equal(fisherExact(5, 5, 5, 5), 1);
+});
+
+test('mean averages the numbers in a list, skips other values, and gives null for none', () => {
+	assert.equal(mean([1, 2, null, 'x', 6]), 3);
+	assert.equal(mean([null]), null);
+	assert.equal(mean([]), null);
+});
+
+test('successScore counts successes over runs with the Wilson interval, and gives null for no runs', () => {
+	const score = successScore([{success: true}, {success: false}, {success: true}, {success: true}]);
+	assert.equal(score.successes, 3);
+	assert.equal(score.runs, 4);
+	assert.equal(score.score, 0.75);
+	assert.deepEqual(score.interval, wilson(3, 4));
+	assert.equal(successScore([]), null);
 });
 
 test('csv round-trips quoted fields', () => {

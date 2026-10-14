@@ -42,6 +42,23 @@ test('searchScore is the harmonic mean of find rate and term distinctiveness', (
 	assert.equal(searchScore(1, null), null);
 });
 
+test('searchScore of a search with no hits is 0, because its find rate is 0', () => {
+	assert.equal(searchScore(0, null), 0);
+});
+
+test('resultsTable overall search score is null when a measured concept has no search score in a version', () => {
+	const noTruth = searchResults.map(row => row.version === 'proposed' && row.concept === 'delay' ? {...row, findRate: null} : row);
+	const table = resultsTable({concepts, tasks, searchResults: noTruth, agentRuns, versionNames});
+	assert.equal(table.overall.byVersion.proposed.searchScore, null);
+	assert.equal(table.overall.change.searchScore, null);
+});
+
+test('resultsTable counts the runs scored without the type check and the tests', () => {
+	const skipped = [...agentRuns, {...run('published', 'edit', true), testsRun: false}];
+	assert.equal(resultsTable({concepts, tasks, searchResults, agentRuns: skipped, versionNames}).skippedRuns, 1);
+	assert.equal(resultsTable({concepts, tasks, searchResults, agentRuns, versionNames}).skippedRuns, 0);
+});
+
 test('resultsTable gives each concept its search score and agent score per version', () => {
 	const table = resultsTable({concepts, tasks, searchResults, agentRuns, versionNames});
 	const count = table.rows.find(row => row.concept === 'count');

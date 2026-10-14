@@ -1,7 +1,7 @@
 // Results table: each concept's search score and agent score per version, with the change between versions
 // and an overall row that leaves out the control concept.
 // Reads results/search-score.json (from search-score.mjs) and results/agent-runs.json (from summarize-agents.mjs).
-// Without agent runs the agent scores show n/a and the table says so.
+// Without agent runs the script writes n/a for every agent score and a note above the table.
 // Writes results/results-table.md.
 // Usage: node results-table.mjs
 import fs from 'node:fs';
@@ -17,12 +17,12 @@ if (!fs.existsSync(searchFile)) {
 }
 
 const search = readJson(searchFile);
-const hasAgentRuns = fs.existsSync(agentFile);
+const agentRuns = fs.existsSync(agentFile) ? readJson(agentFile) : [];
 const table = resultsTable({
 	concepts: loadConcepts().concepts,
 	tasks: loadTasks().tasks,
 	searchResults: search.results,
-	agentRuns: hasAgentRuns ? readJson(agentFile) : [],
+	agentRuns,
 	versionNames: versions,
 });
 
@@ -51,19 +51,23 @@ const conceptLine = row => [
 	...versions.map(version => percent(row.byVersion[version].termDistinctiveness)),
 ];
 const overallLine = ['**Overall**', ...scoreCells(table.overall), ...versions.flatMap(() => ['', ''])];
+const notes = [
+	search.provisionalTruth ? 'Ground truth is provisional.' : 'Ground truth is final.',
+	...(agentRuns.length === 0 ? ['No agent runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.'] : []),
+	...(table.skippedRuns > 0 ? [`${table.skippedRuns} edit runs were scored without the type check, the tests, or the hidden test (--skip-tests), and count as successes when they missed no line.`] : []),
+];
 const markdown = [
 	'# Results',
 	'',
-	search.provisionalTruth ? 'Ground truth is provisional.' : 'Ground truth is final.',
-	hasAgentRuns ? '' : 'No agent runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.',
+	...notes,
 	'',
-	'Search score is the harmonic mean of find rate and term distinctiveness. Agent score is the success rate over the runs of every task on the concept, with the count and its Wilson 95% interval in brackets. A concept with no task shows n/a. Change is proposed minus published. The overall row leaves out the control concept: its search score is the mean over concepts, and its agent score pools every run.',
+	'docs/vocabulary.md defines every column and the overall row. An agent score shows the success count and its Wilson 95% interval in parentheses. A concept with no task shows n/a for its agent score.',
 	'',
 	`| ${header.join(' | ')} |`,
 	`|${'---|'.repeat(header.length)}`,
 	...table.rows.map(row => `| ${conceptLine(row).join(' | ')} |`),
 	`| ${overallLine.join(' | ')} |`,
 	'',
-].filter((line, index, lines) => line !== '' || lines[index - 1] !== '').join('\n');
+].join('\n');
 fs.writeFileSync(path.join(resultsDir, 'results-table.md'), markdown);
 console.log(markdown);

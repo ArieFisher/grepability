@@ -1,29 +1,21 @@
 // The results table: each concept's search score and agent score per version, the change between
 // versions, and an overall row that leaves out the control concept. Pure functions; the results-table
 // script reads the files and writes the table.
-import {wilson} from './helpers.mjs';
+import {mean, successScore} from './helpers.mjs';
 
-// The harmonic mean of find rate and term distinctiveness. A missing value gives null; both at 0 give 0.
+// The harmonic mean of find rate and term distinctiveness. A find rate of 0 gives 0 whatever the term
+// distinctiveness, so a search with no hits scores 0. Any other missing value gives null.
 export const searchScore = (findRate, termDistinctiveness) => {
+	if (findRate === 0) {
+		return 0;
+	}
+
 	if (findRate === null || termDistinctiveness === null) {
 		return null;
 	}
 
-	const sum = findRate + termDistinctiveness;
-	return sum === 0 ? 0 : (2 * findRate * termDistinctiveness) / sum;
+	return (2 * findRate * termDistinctiveness) / (findRate + termDistinctiveness);
 };
-
-// Success rate over a list of runs, with the Wilson interval beside it. No runs give null.
-const agentScore = runs => {
-	if (runs.length === 0) {
-		return null;
-	}
-
-	const successes = runs.filter(run => run.success).length;
-	return {successes, runs: runs.length, score: successes / runs.length, interval: wilson(successes, runs.length)};
-};
-
-const mean = values => values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length;
 
 // Proposed minus published. A missing side gives null.
 const change = (byVersion, versionNames, read) => {
@@ -58,19 +50,21 @@ const conceptCell = (concept, version, searchResults, runs) => {
 		findRate: result.findRate,
 		termDistinctiveness: result.termDistinctiveness,
 		searchScore: searchScore(result.findRate, result.termDistinctiveness),
-		agent: agentScore(runs.filter(run => run.version === version && run.concept === concept.id)),
+		agent: successScore(runs.filter(run => run.version === version && run.concept === concept.id)),
 	};
 };
 
 // The overall search score is the mean over concepts, so each concept counts once. The overall agent
-// score pools every run, so each run counts once. Both leave out the control concept.
+// score pools every run, so each run counts once. Both leave out the control concept. A concept with no
+// search score in a version makes that version's overall search score null, so both versions always
+// average the same concepts.
 const overallRow = (rows, runs, versionNames) => {
 	const measured = rows.filter(row => !row.control);
 	const ids = new Set(measured.map(row => row.concept));
-	const scores = version => measured.map(row => row.byVersion[version].searchScore).filter(value => value !== null);
+	const scores = version => measured.map(row => row.byVersion[version].searchScore);
 	const byVersion = Object.fromEntries(versionNames.map(version => [version, {
-		searchScore: mean(scores(version)),
-		agent: agentScore(runs.filter(run => run.version === version && ids.has(run.concept))),
+		searchScore: scores(version).includes(null) ? null : mean(scores(version)),
+		agent: successScore(runs.filter(run => run.version === version && ids.has(run.concept))),
 	}]));
 	return {byVersion, change: changes(byVersion, versionNames)};
 };
@@ -81,5 +75,5 @@ export const resultsTable = ({concepts, tasks, searchResults, agentRuns, version
 		const byVersion = Object.fromEntries(versionNames.map(version => [version, conceptCell(concept, version, searchResults, runs)]));
 		return {concept: concept.id, name: concept.name, control: Boolean(concept.control), byVersion, change: changes(byVersion, versionNames)};
 	});
-	return {rows, overall: overallRow(rows, runs, versionNames)};
+	return {rows, overall: overallRow(rows, runs, versionNames), skippedRuns: runs.filter(run => run.testsRun === false).length};
 };

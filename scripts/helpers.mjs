@@ -319,6 +319,22 @@ export const wilson = (k, n) => {
 	return {low: Math.max(0, centre - half), high: Math.min(1, centre + half)};
 };
 
+// The mean of the numbers in a list. Other values are skipped. A list with no number gives null.
+export const mean = values => {
+	const numbers = values.filter(value => typeof value === 'number' && !Number.isNaN(value));
+	return numbers.length === 0 ? null : numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+};
+
+// Successes over a list of runs, as a count, a share, and the Wilson interval. No runs give null.
+export const successScore = runs => {
+	if (runs.length === 0) {
+		return null;
+	}
+
+	const successes = runs.filter(run => run.success).length;
+	return {successes, runs: runs.length, score: successes / runs.length, interval: wilson(successes, runs.length)};
+};
+
 // Two-sided Fisher exact test on a 2x2 table [[a, b], [c, d]]: sums the probabilities of every
 // table with the same margins that is at most as likely as the observed one.
 export const fisherExact = (a, b, c, d) => {
