@@ -1,8 +1,7 @@
 // Results table: each concept's search score and agent score per version, with the change between versions
 // and an overall row that leaves out the control concept.
 // Reads results/search-score.json (from search-score.mjs), which holds the ground truth state its scores used,
-// and results/agent-runs.json (from
-// summarize-agents.mjs).
+// and results/agent-runs.json (from summarize-agents.mjs).
 // Without agent runs the script writes n/a for every agent score and a note above the table.
 // Writes results/results-table.md.
 // Usage: node results-table.mjs
@@ -61,9 +60,9 @@ const notes = [
 const markdown = [
 	'# Results',
 	'',
-	...notes,
+	notes.join('\n\n'),
 	'',
-	'docs/vocabulary.md defines every column and the overall row. An agent score shows the success count and its Wilson 95% interval in parentheses. A concept with no task shows n/a for its agent score.',
+	'Every column and the overall row follow the definitions in docs/vocabulary.md. An agent score shows the success count and its Wilson 95% interval in parentheses. A concept with no task shows n/a for its agent score.',
 	'',
 	`| ${header.join(' | ')} |`,
 	`|${'---|'.repeat(header.length)}`,
