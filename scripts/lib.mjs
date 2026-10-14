@@ -46,7 +46,7 @@ export const loadCodebase = () => {
 	}
 
 	const codebase = readJson(codebaseFile);
-	const required = ['repository', 'commit', 'corpus.directory', 'corpus.extension', 'typecheck', 'tests.directory', 'tests.extension', 'tests.skip', 'tests.command', 'tests.rerun', 'tests.titleSeparator'];
+	const required = ['repository', 'commit', 'corpus.directory', 'corpus.extension', 'compile', 'typecheck', 'tests.directory', 'tests.extension', 'tests.skip', 'tests.command', 'tests.rerun', 'tests.titleSeparator'];
 	const missing = required.filter(field => field.split('.').reduce((value, part) => value?.[part], codebase) === undefined);
 	if (missing.length > 0) {
 		throw new Error(`${codebaseFile} is missing: ${missing.join(', ')}`);
@@ -78,6 +78,16 @@ export const runChecked = (command, args, options = {}) => {
 	}
 
 	return result;
+};
+
+// Runs the codebase's own compile step in one directory, so its type tests see the declarations of
+// that directory's source. A failed step throws.
+export const compileCodebase = (root, command = loadCodebase().compile) => {
+	const [program, ...args] = command;
+	const result = runChecked(program, args, {cwd: root});
+	if (result.status !== 0) {
+		throw new Error(`The compile command ${command.join(' ')} exited with status ${result.status} in ${root}:\n${(result.stdout + result.stderr).slice(-2000)}`);
+	}
 };
 
 // Language service over the project's own tsconfig.json, so references match what the compiler sees.

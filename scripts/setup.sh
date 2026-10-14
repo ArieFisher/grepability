@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The published codebase: the codebase at its pinned commit, dependencies installed, baseline test results recorded.
+# The published codebase: the codebase at its pinned commit, dependencies installed, compiled, baseline test results recorded.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 config="$here/config/codebase.json"
@@ -27,4 +27,5 @@ if [ ! -d "$deps" ]; then
 fi
 [ -L "$published/node_modules" ] || ln -s ../deps/node_modules "$published/node_modules"
 
+node "$here/scripts/compile-codebase.mjs" "$version"
 node "$here/scripts/run-tests.mjs" "$version"

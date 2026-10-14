@@ -5,7 +5,27 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {acceptTags, checkReviewers, integerOption, parseTap, summarizeTranscript} from './helpers.mjs';
-import {createService, rerunTest, runChecked} from './lib.mjs';
+import {compileCodebase, createService, loadCodebase, rerunTest, runChecked} from './lib.mjs';
+
+test('the codebase configuration holds a compile command', () => {
+	const {compile} = loadCodebase();
+	assert.ok(Array.isArray(compile) && compile.length > 0 && compile.every(part => typeof part === 'string'));
+});
+
+test('compileCodebase runs the compile command in the directory it is given', () => {
+	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'compile-'));
+	try {
+		compileCodebase(scratch, ['node', '-e', "require('node:fs').writeFileSync('compiled.txt', 'yes')"]);
+		assert.equal(fs.readFileSync(path.join(scratch, 'compiled.txt'), 'utf8'), 'yes');
+	} finally {
+		fs.rmSync(scratch, {recursive: true, force: true});
+	}
+});
+
+test('compileCodebase throws when the compile command fails or cannot start', () => {
+	assert.throws(() => compileCodebase(os.tmpdir(), ['node', '-e', 'process.exit(2)']), /compile command.*exited with status 2/s);
+	assert.throws(() => compileCodebase(os.tmpdir(), ['no-such-command-for-this-test']), /no-such-command-for-this-test/);
+});
 
 test('integerOption returns a whole number at or above the minimum', () => {
 	assert.equal(integerOption(['--runs', '5'], 'runs', 10, 1), 5);

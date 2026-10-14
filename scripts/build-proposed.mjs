@@ -6,7 +6,7 @@
 // Usage: node build-proposed.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {compareTests, copyCodebase, corpusFiles, createService, positionInText, projectRoot, proposedVersion, publishedVersion, readJson, relative, runChecked, versionDir, workDir} from './lib.mjs';
+import {compareTests, compileCodebase, copyCodebase, corpusFiles, createService, positionInText, projectRoot, proposedVersion, publishedVersion, readJson, relative, runChecked, versionDir, workDir} from './lib.mjs';
 
 const source = versionDir(publishedVersion);
 const target = versionDir(proposedVersion);
@@ -78,6 +78,9 @@ for (const [file, text] of texts) {
 }
 
 console.log(log.join('\n'));
+
+// The copied compile output still holds the published names. The proposed codebase compiles from its own source.
+compileCodebase(target);
 
 // Same type-check and test results as the published codebase?
 // run-tests exits 1 after a failed type check and still writes its result, so only a missing file is a failure.

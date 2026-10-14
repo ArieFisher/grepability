@@ -5,6 +5,7 @@
 		"directory": "source",
 		"extension": ".ts"
 	},
+	"compile": ["npm", "run", "build"],
 	"typecheck": [
 		["npx", "tsc", "--project", "tsconfig.json", "--noEmit"],
 		["npx", "tsc", "--project", "tsconfig.test.json", "--noEmit"]
