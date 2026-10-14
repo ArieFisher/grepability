@@ -1,5 +1,5 @@
 {
-	"note": "The proposed codebase: the published codebase with each concept's lines reworded to use the concept's search term. Built from the published codebase's search misses (results/misses-published.csv). Public option names, platform names, and error message strings stay unchanged so behavior and tests are unaffected. Every edit keeps line numbers identical.",
+	"note": "The rules for these edits are in docs/proposed-edits.md.",
 	"renames": [
 		{"concept": "retry-count", "file": "source/types/retry.ts", "line": 84, "name": "attemptCount", "newName": "retryCount"},
 		{"concept": "retry-count", "file": "source/utils/normalize.ts", "line": 32, "name": "attemptCount", "newName": "retryCount"},
