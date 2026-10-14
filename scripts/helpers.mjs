@@ -45,8 +45,54 @@ export const regressionCandidates = (baselineTests, runTests) => Object.entries(
 	.filter(([name, passed]) => passed && runTests[name] !== true)
 	.map(([name]) => name);
 
+// The first word of every sub-command in a shell command line. A sub-command ends at &&, ||, ;, |, &, or a
+// line break outside quotes; the & of a redirection such as 2>&1 does not end one. A leading NAME=value
+// assignment is skipped. Command substitution is not parsed.
+export const shellCommandNames = commandLine => {
+	const names = [];
+	let word = '';
+	let quote = '';
+	let named = false;
+	const endWord = () => {
+		if (word && !named && !/^[A-Za-z_]\w*=/.test(word)) {
+			names.push(word);
+			named = true;
+		}
+
+		word = '';
+	};
+
+	for (let i = 0; i < commandLine.length; i++) {
+		const char = commandLine[i];
+		if (char === '\\' && quote !== "'") {
+			word += commandLine[++i] ?? '';
+		} else if (quote) {
+			if (char === quote) {
+				quote = '';
+			} else {
+				word += char;
+			}
+		} else if (char === '"' || char === "'") {
+			quote = char;
+		} else if (char === '&' && (/[<>]$/.test(word) || commandLine[i + 1] === '>')) {
+			word += char;
+		} else if (/[;|&\n]/.test(char)) {
+			endWord();
+			named = false;
+		} else if (/\s/.test(char)) {
+			endWord();
+		} else {
+			word += char;
+		}
+	}
+
+	endWord();
+	return names;
+};
+
 // Summary of the agent's transcript (newline-delimited JSON events): final reply, cost, turns, and
-// the tools it used. A transcript with no result event ended early, so it counts as an error.
+// the tools it used. Each sub-command of a shell command counts as its own tool use, labeled Bash:<name>.
+// A transcript with no result event ended early, so it counts as an error.
 export const summarizeTranscript = text => {
 	const toolCounts = {};
 	let result;
@@ -65,9 +111,10 @@ export const summarizeTranscript = text => {
 		if (event.type === 'assistant') {
 			for (const block of event.message?.content ?? []) {
 				if (block.type === 'tool_use') {
-					const command = block.name === 'Bash' ? String(block.input?.command ?? '').trim().split(/\s+/)[0] : '';
-					const label = command ? `Bash:${command}` : block.name;
-					toolCounts[label] = (toolCounts[label] ?? 0) + 1;
+					const names = block.name === 'Bash' ? shellCommandNames(String(block.input?.command ?? '')) : [];
+					for (const label of names.length > 0 ? names.map(name => `Bash:${name}`) : [block.name]) {
+						toolCounts[label] = (toolCounts[label] ?? 0) + 1;
+					}
 				}
 			}
 		}
@@ -278,6 +325,36 @@ export const fisherExact = (a, b, c, d) => {
 	}
 
 	return Math.min(1, p);
+};
+
+// The median of the numbers in a list: the middle value, or the mean of the two middle values when the
+// count is even. Other values are skipped. An empty list gives null.
+export const median = values => {
+	const numbers = values.filter(value => typeof value === 'number').sort((a, b) => a - b);
+	if (numbers.length === 0) {
+		return null;
+	}
+
+	const middle = Math.floor(numbers.length / 2);
+	return numbers.length % 2 === 1 ? numbers[middle] : (numbers[middle - 1] + numbers[middle]) / 2;
+};
+
+// Score of a find reply: the share of the ground truth's lines it lists, the lines missed, and whether none
+// is missed. Extra lines in the reply do not matter. A concept with no truth line has no find rate, so it throws.
+export const findScore = (listed, expected) => {
+	if (expected.size === 0) {
+		throw new Error('The ground truth lists no line for the concept, so a find rate is undefined.');
+	}
+
+	const missed = [...expected].filter(item => !listed.has(item)).length;
+	return {findRate: (expected.size - missed) / expected.size, missed, success: missed === 0};
+};
+
+// Whether line number `line` (1-based) of a file's lines matches the concept's forms. A line past the end of
+// the file matches nothing.
+export const matchesForms = (fileLines, line, forms) => {
+	const text = fileLines[line - 1];
+	return text !== undefined && new RegExp(forms, 'i').test(text);
 };
 
 // Minimal CSV handling: quoted fields, doubled quotes.

@@ -1,11 +1,12 @@
 // Unit tests for the helpers in helpers.mjs and lib.mjs. Run: node --test scripts/
 import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, fisherExact, fromCsv, interleave, key, listedLines, option, percent, readWrongEdits, regressionCandidates, shuffle, splitKey, toCsv, wilson} from './helpers.mjs';
-import {commentLinesOfText, copyCodebase, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
+import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, median, option, percent, readWrongEdits, regressionCandidates, shellCommandNames, shuffle, splitKey, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
+import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
 
@@ -251,6 +252,73 @@ test('readWrongEdits throws on another value, a repeated run, or a run missing f
 	assert.throws(() => readWrongEdits([{runId: 'a', wrong_edits: ''}], ['a', 'b']), /b/);
 });
 
+test('median averages the two middle values of an even count and skips non-numbers', () => {
+	assert.equal(median([4, 1, 3, 2]), 2.5);
+	assert.equal(median([5, 1, 3]), 3);
+	assert.equal(median([2, null, 'x', 8]), 5);
+	assert.equal(median([]), null);
+});
+
+test('shellCommandNames lists the first word of every sub-command', () => {
+	assert.deepEqual(shellCommandNames('rg foo src'), ['rg']);
+	assert.deepEqual(shellCommandNames('cd src && rg foo | head -5'), ['cd', 'rg', 'head']);
+	assert.deepEqual(shellCommandNames('ls; grep -r x . || echo none\nrg y'), ['ls', 'grep', 'echo', 'rg']);
+});
+
+test('shellCommandNames ignores operators inside quotes and leading variable assignments', () => {
+	assert.deepEqual(shellCommandNames(String.raw`rg "a|b;c && d" src`), ['rg']);
+	assert.deepEqual(shellCommandNames("grep 'x||y' f | wc -l"), ['grep', 'wc']);
+	assert.deepEqual(shellCommandNames('LC_ALL=C rg foo'), ['rg']);
+	assert.deepEqual(shellCommandNames('  '), []);
+});
+
+test('summarizeTranscript counts every sub-command of a compound shell command', () => {
+	const event = {type: 'assistant', message: {content: [{type: 'tool_use', name: 'Bash', input: {command: 'cd src && rg foo | head'}}]}};
+	assert.deepEqual(summarizeTranscript(JSON.stringify(event)).toolCounts, {'Bash:cd': 1, 'Bash:rg': 1, 'Bash:head': 1});
+});
+
+test('findScore reports the find rate, the lines missed, and success when none is missed', () => {
+	const expected = new Set(['a:1', 'a:2', 'a:3', 'a:4']);
+	assert.deepEqual(findScore(new Set(['a:1', 'a:2', 'a:9']), expected), {findRate: 0.5, missed: 2, success: false});
+	assert.deepEqual(findScore(new Set(['a:1', 'a:2', 'a:3', 'a:4', 'a:9']), expected), {findRate: 1, missed: 0, success: true});
+});
+
+test('findScore throws when the ground truth lists no line for the concept', () => {
+	assert.throws(() => findScore(new Set(['a:1']), new Set()), /no line/);
+});
+
+test('matchesForms tests the text of a line and never the text of a missing line', () => {
+	const lines = ['const retry = 1;', 'other'];
+	assert.equal(matchesForms(lines, 1, 'retry'), true);
+	assert.equal(matchesForms(lines, 2, 'retry'), false);
+	assert.equal(matchesForms(lines, 3, 'undefined'), false);
+	assert.equal(matchesForms(lines, 0, 'undefined'), false);
+});
+
+test('diffSinceSnapshot writes a/ and b/ prefixes whatever the git configuration says', () => {
+	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-since-snapshot-'));
+	try {
+		const git = (...args) => execFileSync('git', args, {cwd: scratch, encoding: 'utf8'});
+		git('init', '-q');
+		git('config', 'user.email', 'test@example.com');
+		git('config', 'user.name', 'test');
+		git('config', 'commit.gpgsign', 'false');
+		git('config', 'core.hooksPath', os.devNull);
+		fs.writeFileSync(path.join(scratch, 'f.txt'), 'one\n');
+		git('add', '-A');
+		git('commit', '-q', '-m', 'start');
+		const snapshot = git('rev-parse', 'HEAD').trim();
+		fs.writeFileSync(path.join(scratch, 'f.txt'), 'two\n');
+		git('config', 'diff.noprefix', 'true');
+		const diff = diffSinceSnapshot(scratch, snapshot);
+		assert.match(diff, /^--- a\/f\.txt$/m);
+		assert.match(diff, /^\+\+\+ b\/f\.txt$/m);
+		assert.deepEqual([...changedOriginalLines(diff)], ['f.txt:1']);
+	} finally {
+		fs.rmSync(scratch, {recursive: true, force: true});
+	}
+});
+
 test('wilson brackets the observed share and clamps to [0, 1]', () => {
 	const interval = wilson(9, 10);
 	assert.ok(interval.low < 0.9 && interval.high > 0.9);
@@ -261,7 +329,7 @@ test('wilson brackets the observed share and clamps to [0, 1]', () => {
 });
 
 test('fisherExact matches known values', () => {
-	assert.ok(Math.abs(fisherExact(0, 10, 9, 1) - 0.000_112_8) < 1e-5);
+	assert.ok(Math.abs(fisherExact(0, 10, 9, 1) - 0.000_119_08) < 1e-7);
 	assert.ok(Math.abs(fisherExact(9, 1, 6, 4) - 0.303) < 0.002);
 	assert.equal(fisherExact(5, 5, 5, 5), 1);
 });

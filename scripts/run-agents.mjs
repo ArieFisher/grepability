@@ -6,7 +6,7 @@ import {execFileSync, spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {copyCodebase, integerOption, interleave, loadCodebase, loadTasks, maxOutputBytes, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {copyCodebase, diffSinceSnapshot, integerOption, interleave, loadCodebase, loadTasks, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const config = loadTasks();
@@ -37,13 +37,6 @@ const makeCopy = (version, runId) => {
 	git('add', '-A');
 	git('-c', 'user.name=snapshot', '-c', 'user.email=snapshot@example.invalid', 'commit', '-q', '-m', 'Snapshot');
 	return {directory, snapshot: git('rev-parse', 'HEAD').trim()};
-};
-
-// Everything the agent changed since the snapshot, whether it left the change unstaged, staged it,
-// committed it, or wrote a new file. Staging first brings new files into the diff.
-const diffSinceSnapshot = (directory, snapshot) => {
-	execFileSync('git', ['add', '-A'], {cwd: directory, stdio: 'ignore'});
-	return execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color', snapshot], {cwd: directory, encoding: 'utf8', maxBuffer: maxOutputBytes});
 };
 
 const runAgent = (task, directory, logFile) => new Promise(resolve => {

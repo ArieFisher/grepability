@@ -1,5 +1,5 @@
 // Shared helpers: codebase configuration, file lists, TypeScript language service, comment lines, test reruns.
-import {spawnSync} from 'node:child_process';
+import {execFileSync, spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,6 +26,14 @@ export const loadTasks = () => readJson(path.join(projectRoot, 'config', 'tasks.
 // Cap on the output a child process may print to a script: 256 MiB, far above the diff or test
 // output of the Ky codebase. A child that prints more fails with an error.
 export const maxOutputBytes = 1 << 28;
+
+// Everything the agent changed since the snapshot, whether it left the change unstaged, staged it,
+// committed it, or wrote a new file. Staging first brings new files into the diff. The a/ and b/ prefixes
+// are set here because a git configuration of diff.noprefix drops them, and the diff parser needs them.
+export const diffSinceSnapshot = (directory, snapshot) => {
+	execFileSync('git', ['add', '-A'], {cwd: directory, stdio: 'ignore'});
+	return execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color', '--src-prefix=a/', '--dst-prefix=b/', snapshot], {cwd: directory, encoding: 'utf8', maxBuffer: maxOutputBytes});
+};
 
 // Writes a version's files to a new directory without node_modules and .git, and links node_modules
 // to the dependencies that every version and run copy shares (work/deps, installed by setup.sh).

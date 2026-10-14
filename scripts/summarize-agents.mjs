@@ -6,7 +6,7 @@
 // Usage: node summarize-agents.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {fisherExact, fromCsv, loadTasks, percent, projectRoot, proposedVersion, publishedVersion, readJson, readWrongEdits, toCsv, versions, wilson, workDir, writeJson} from './lib.mjs';
+import {fisherExact, fromCsv, loadTasks, median, percent, projectRoot, proposedVersion, publishedVersion, readJson, readWrongEdits, toCsv, versions, wilson, workDir, writeJson} from './lib.mjs';
 
 const config = loadTasks();
 const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
@@ -43,14 +43,10 @@ const mean = values => {
 	return numbers.length === 0 ? null : numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 };
 
-const median = values => {
-	const numbers = values.filter(value => typeof value === 'number').sort((a, b) => a - b);
-	return numbers.length === 0 ? null : numbers[Math.floor((numbers.length - 1) / 2)];
-};
-
 const format = (value, digits = 2) => value === null ? 'n/a' : value.toFixed(digits);
 const skipped = scored.filter(row => row.testsRun === false).length;
 const unanswered = scored.filter(row => row.wrongEdits === null).length;
+const runsPerCell = Math.max(...config.tasks.flatMap(task => versions.map(version => scored.filter(row => row.task === task.id && row.version === version).length)));
 const lines = [
 	'# Agent runs',
 	'',
@@ -58,7 +54,7 @@ const lines = [
 	skipped > 0 ? `${skipped} edit runs were scored on line coverage only (--skip-tests): no type check, tests, or hidden test.` : 'Every edit run was type-checked and tested.',
 	unanswered > 0 ? `${unanswered} of ${scored.length} runs have no wrong_edits answer on the blind review sheet.` : 'Every run has a wrong_edits answer on the blind review sheet.',
 	'',
-	'Success shows the count and its Wilson 95% interval. p is a two-sided Fisher exact test of success between versions; with ten runs per version, only large gaps fall below 0.05. Wrong edits shows the runs marked yes over the runs answered; it does not change success.',
+	'Success shows the count and its Wilson 95% interval. p is a two-sided Fisher exact test of success between versions; with at most ${runsPerCell} runs per task and version, only large gaps fall below 0.05. Wrong edits shows the runs marked yes over the runs answered; it does not change success.',
 	'',
 	'| Task | Version | Runs | Success | 95% interval | p (published vs proposed) | Wrong edits | Mean find rate | Mean lines missed | Median time (s) | Mean cost ($) | Mean search calls |',
 	'|---|---|---|---|---|---|---|---|---|---|---|---|',

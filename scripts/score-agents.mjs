@@ -10,7 +10,7 @@
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
-import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, projectRoot, publishedVersion, readJson, regressionCandidates, rerunTest, runChecked, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, readJson, regressionCandidates, rerunTest, runChecked, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -79,10 +79,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 
 	if (task.kind === 'find') {
 		const listed = listedLines(fs.readFileSync(path.join(runDir, 'final.md'), 'utf8'), knownFiles);
-		const found = [...listed].filter(item => expected.has(item));
-		row.findRate = found.length / expected.size;
-		row.missed = expected.size - found.length;
-		row.success = row.missed === 0;
+		Object.assign(row, findScore(listed, expected));
 	} else {
 		const changed = changedOriginalLines(diff);
 		const sourceChanged = [...changed].filter(item => inCorpus(item));
@@ -98,8 +95,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			}
 
 			const {file, line} = splitKey(item);
-			const text = fs.readFileSync(path.join(versionDir(version), file), 'utf8').split('\n')[line - 1];
-			return new RegExp(concept.forms, 'i').test(text);
+			return matchesForms(fs.readFileSync(path.join(versionDir(version), file), 'utf8').split('\n'), line, concept.forms);
 		}));
 		if (targets.size === 0) {
 			throw new Error(`Task ${task.id} has no target lines in version ${version}.`);
