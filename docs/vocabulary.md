@@ -87,7 +87,7 @@ One term per concept, used in every document, comment, test name, commit message
 | p | The two-sided Fisher exact test between published codebase and proposed codebase success counts for one task. | p-value, significance, probability |
 | results table | The table of each concept's search score and agent score in each version, with the change for each score, the find rate and term distinctiveness behind the search score, and the overall row. The results-table script writes it. | results matrix, scorecard, summary table |
 | change | A score in the proposed codebase minus the same score in the published codebase, in percentage points. | delta, difference, improvement, lift |
-| overall row | The results table row that combines every concept except the control concept. Its search score is the mean over those concepts, so each concept counts once. Its agent score pools their runs, so each run counts once. | total row, aggregate, summary row |
+| overall row | The results table row that combines every concept except the control concept. Its search score is the mean over those concepts, so each concept counts once. Its agent score pools their runs, so each run counts once. A concept with no search score in a version leaves that version's overall search score empty, so both versions average the same concepts. | total row, aggregate, summary row |
 
 ## Words kept literal
 
