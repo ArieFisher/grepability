@@ -55,8 +55,10 @@ One term per concept, used in every document, comment, test name, commit message
 | cell | One task in one version. The run script spreads runs round-robin over cells, so drift in the model service over time reaches every cell alike. | condition, group, bucket, task-version pair |
 | run | One execution of the agent on one task in one version, in its own run copy, with a random id. | trial, attempt, execution, session, sample |
 | run copy | The fresh copy of a version made for one run. It has the same folder name in every run and links to shared dependencies. | sandbox, workspace, checkout, working copy |
-| key | The file that maps each run id to its version and task. The scoring script reads it last, so a person can judge the blind review sheet first. | mapping, lookup, index, legend |
-| blind review | A person's pass over run diffs with no version shown, to judge unexpected edits before the key is read. | blinded review, masked review |
+| key | The file that maps each run id to its version and task. The summary script reads it last, after the blind review sheet is answered. The scoring script reads it to score each run, and writes no version into any file a person opens. | mapping, lookup, index, legend |
+| blind review | A person's pass over run diffs with no version shown, to mark wrong edits before the key is read. | blinded review, masked review |
+| blind review sheet | The list of every run, one row each, in shuffled order with no version. The person doing the blind review writes yes or no in the wrong_edits column. A rescore keeps the rows and answers already there and adds only new runs. | judging sheet, blind sheet, review form |
+| wrong edit | An edit in a run's diff that the person doing the blind review marks as incorrect or not asked for. The summary counts the runs marked yes next to the runs answered; the count leaves success unchanged. | bad edit, unexpected edit, bad change |
 | transcript | The agent's full event stream for one run, as newline-delimited JSON. | log, trace, session log, output |
 | final reply | The agent's last message in a run. The scoring script scores find tasks on its last fenced block. | final answer, response, result text, output |
 | baseline | The type check and test results of a version before any agent touches it. A test that fails in a baseline never counts as a regression. | reference results, control results, original results |
