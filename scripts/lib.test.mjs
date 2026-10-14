@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, median, option, percent, readWrongEdits, regressionCandidates, shellCommandNames, shuffle, splitKey, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
+import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, median, missingRuns, option, percent, readWrongEdits, regressionCandidates, shellCommandNames, shuffle, splitKey, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -224,6 +224,15 @@ test('interleave puts one job from every cell in each round', () => {
 		const cells = ordered.slice(round * 3, (round * 3) + 3).map(job => job.cell).sort();
 		assert.deepEqual(cells, ['a', 'b', 'c']);
 	}
+});
+
+test('missingRuns lists the runs each cell still needs, numbered after the runs done', () => {
+	const tasks = [{id: 't1'}, {id: 't2'}];
+	const done = (task, version) => task.id === 't1' && version === 'a' ? 2 : 0;
+	const jobs = missingRuns(tasks, ['a', 'b'], 3, done);
+	assert.equal(jobs.length, (3 - 2) + 3 + 3 + 3);
+	assert.deepEqual(jobs.filter(job => job.task.id === 't1' && job.version === 'a').map(job => job.index), [2]);
+	assert.deepEqual(jobs.filter(job => job.task.id === 't2' && job.version === 'b').map(job => job.index), [0, 1, 2]);
 });
 
 test('shuffle returns a permutation and leaves the input alone', () => {

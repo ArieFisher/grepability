@@ -6,7 +6,7 @@ import {spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {diffSinceSnapshot, integerOption, interleave, loadCodebase, loadTasks, makeRunCopy, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {diffSinceSnapshot, integerOption, interleave, loadCodebase, loadTasks, makeRunCopy, missingRuns, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const config = loadTasks();
@@ -79,20 +79,15 @@ const runAgent = (task, directory, logFile) => new Promise(resolve => {
 	child.on('close', code => finish(code));
 });
 
-const jobs = [];
-for (const taskId of taskIds) {
+const selectedTasks = taskIds.map(taskId => {
 	const task = config.tasks.find(item => item.id === taskId);
 	if (!task) {
 		throw new Error(`Unknown task ${taskId}`);
 	}
 
-	for (const version of selectedVersions) {
-		const done = Object.values(key).filter(entry => entry.task === taskId && entry.version === version).length;
-		for (let index = done; index < runsPerCell; index++) {
-			jobs.push({task, version, index});
-		}
-	}
-}
+	return task;
+});
+const jobs = missingRuns(selectedTasks, selectedVersions, runsPerCell, (task, version) => Object.values(key).filter(entry => entry.task === task.id && entry.version === version).length);
 
 // Round-robin over cells (task x version), shuffled within each round, so drift in the model service
 // over time hits every cell alike.

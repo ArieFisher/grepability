@@ -205,6 +205,13 @@ export const shuffle = items => {
 	return result;
 };
 
+// The runs each cell (task and version) still needs to reach `runsPerCell`. `done(task, version)` gives the
+// number of runs the cell already has; new runs are numbered after them.
+export const missingRuns = (tasks, versionNames, runsPerCell, done) => tasks.flatMap(task => versionNames.flatMap(version => {
+	const have = done(task, version);
+	return Array.from({length: Math.max(0, runsPerCell - have)}, (_, offset) => ({task, version, index: have + offset}));
+}));
+
 // Round-robin order: every round holds one job from each cell, shuffled within the round, so each
 // cell is spread evenly across the whole batch and model drift over time hits every cell alike.
 export const interleave = (jobs, cellOf) => {
