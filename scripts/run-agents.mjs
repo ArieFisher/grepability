@@ -2,11 +2,11 @@
 // Same tools and no user settings in every run. Each run gets a random id; the id-to-version key is kept in work/runs/key.json so scoring can be blind.
 // The run copy stays under work/runs/<id>/ so scoring can run its tests later.
 // Usage: node run-agents.mjs [--runs 10] [--tasks find-all,rename,retry-count-start] [--versions published,proposed] [--parallel 2] [--model sonnet]
-import {execFileSync, spawn} from 'node:child_process';
+import {spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {copyCodebase, diffSinceSnapshot, integerOption, interleave, loadCodebase, loadTasks, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {diffSinceSnapshot, integerOption, interleave, loadCodebase, loadTasks, makeRunCopy, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const config = loadTasks();
@@ -29,15 +29,7 @@ const key = fs.existsSync(keyFile) ? readJson(keyFile) : {};
 // Every run copy looks the same from inside: same folder name (the repository's own), one fresh commit, shared dependencies.
 // Returns the run copy's path and the snapshot commit, which the diff after the run is taken against.
 const copyName = path.basename(loadCodebase().repository, '.git');
-const makeCopy = (version, runId) => {
-	const directory = path.join(runsDir, runId, copyName);
-	copyCodebase(versionDir(version), directory);
-	const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
-	git('init', '-q');
-	git('add', '-A');
-	git('-c', 'user.name=snapshot', '-c', 'user.email=snapshot@example.invalid', 'commit', '-q', '-m', 'Snapshot');
-	return {directory, snapshot: git('rev-parse', 'HEAD').trim()};
-};
+const makeCopy = (version, runId) => makeRunCopy(versionDir(version), path.join(runsDir, runId, copyName));
 
 const runAgent = (task, directory, logFile) => new Promise(resolve => {
 	const args = [

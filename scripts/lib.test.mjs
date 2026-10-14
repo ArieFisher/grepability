@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, median, option, percent, readWrongEdits, regressionCandidates, shellCommandNames, shuffle, splitKey, summarizeTranscript, toCsv, wilson} from './helpers.mjs';
-import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
+import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
 
@@ -109,6 +109,24 @@ test('copyCodebase copies files, leaves out node_modules and .git, and links the
 		assert.ok(!fs.existsSync(path.join(destination, '.git')));
 		assert.ok(fs.lstatSync(path.join(destination, 'node_modules')).isSymbolicLink());
 		assert.equal(fs.readlinkSync(path.join(destination, 'node_modules')), path.join(workDir, 'deps', 'node_modules'));
+	} finally {
+		fs.rmSync(scratch, {recursive: true, force: true});
+	}
+});
+
+test('makeRunCopy copies a version, commits it as the snapshot, and leaves a clean tree', () => {
+	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'make-run-copy-'));
+	try {
+		const source = path.join(scratch, 'source');
+		fs.mkdirSync(path.join(source, 'src'), {recursive: true});
+		fs.writeFileSync(path.join(source, 'src', 'a.ts'), 'export {};\n');
+		fs.writeFileSync(path.join(source, '.gitignore'), 'node_modules/\n');
+		const {directory, snapshot} = makeRunCopy(source, path.join(scratch, 'out', 'copy'));
+		assert.match(snapshot, /^[\da-f]{40}$/);
+		const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8'});
+		assert.equal(git('rev-parse', 'HEAD').trim(), snapshot);
+		assert.equal(git('status', '--porcelain'), '');
+		assert.equal(diffSinceSnapshot(directory, snapshot), '');
 	} finally {
 		fs.rmSync(scratch, {recursive: true, force: true});
 	}

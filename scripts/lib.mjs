@@ -28,6 +28,17 @@ export const loadTasks = () => readJson(path.join(projectRoot, 'config', 'tasks.
 // output of the Ky codebase. A child that prints more fails with an error.
 export const maxOutputBytes = 1 << 28;
 
+// A fresh run copy of a version: the files in a new directory, one commit named Snapshot, shared
+// dependencies linked. The diff after a run is taken against that snapshot commit.
+export const makeRunCopy = (source, directory) => {
+	copyCodebase(source, directory);
+	const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
+	git('init', '-q');
+	git('add', '-A');
+	git('-c', 'user.name=snapshot', '-c', 'user.email=snapshot@example.invalid', 'commit', '-q', '-m', 'Snapshot');
+	return {directory, snapshot: git('rev-parse', 'HEAD').trim()};
+};
+
 // Everything the agent changed since the snapshot, whether it left the change unstaged, staged it,
 // committed it, or wrote a new file. Staging first brings new files into the diff. The a/ and b/ prefixes
 // are set here because a git configuration of diff.noprefix drops them, and the diff parser needs them.
