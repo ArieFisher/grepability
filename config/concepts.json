@@ -1,0 +1,366 @@
+{
+	"concepts": [
+		{
+			"id": "retry-count",
+			"name": "Retry count",
+			"definition": "The number of the current retry: 0 for the initial request where hooks report it, 1 for the first retry. Includes the number passed to the retry delay function, whatever it is called.",
+			"search": "retry[\\s_-]?count",
+			"forms": "retry[\\s_-]?count|attempt[\\s_-]?count|number of retries attempted",
+			"seeds": [
+				{
+					"file": "source/core/Ky.ts",
+					"line": 440,
+					"name": "#retryCount"
+				},
+				{
+					"file": "source/types/hooks.ts",
+					"line": 39,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/types/hooks.ts",
+					"line": 52,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/types/hooks.ts",
+					"line": 91,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/types/hooks.ts",
+					"line": 107,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 18,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 710,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 802,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1047,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1081,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1171,
+					"name": "retryCount"
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 84,
+					"name": "attemptCount"
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 32,
+					"name": "attemptCount"
+				}
+			]
+		},
+		{
+			"id": "retry-delay",
+			"name": "Retry delay",
+			"definition": "How long Ky waits before a retry: the computed backoff, its limits, jitter applied to it, delays taken from retry timing headers, and custom delays for forced retries. Excludes the generic sleep helper itself.",
+			"search": "delay",
+			"seeds": [
+				{
+					"file": "source/core/Ky.ts",
+					"line": 665,
+					"name": "#calculateDelay"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 688,
+					"name": "#calculateRetryDelay"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 666,
+					"name": "retryDelay"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 666,
+					"name": "delay"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 674,
+					"name": "jitteredDelay"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 685,
+					"name": "backoffLimit"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 747,
+					"name": "maxRetryAfter"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1128,
+					"name": "retryDelay"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1129,
+					"name": "delayOptions"
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 58,
+					"name": "maxRetryAfter"
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 75,
+					"name": "backoffLimit"
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 84,
+					"name": "delay"
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 119,
+					"name": "delay"
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 30,
+					"name": "maxRetryAfter"
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 31,
+					"name": "backoffLimit"
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 32,
+					"name": "delay"
+				},
+				{
+					"file": "source/core/constants.ts",
+					"line": 88,
+					"name": "delay"
+				},
+				{
+					"file": "source/errors/ForceRetryError.ts",
+					"line": 13,
+					"name": "customDelay"
+				},
+				{
+					"file": "source/errors/ForceRetryError.ts",
+					"line": 24,
+					"name": "delay"
+				},
+				{
+					"file": "source/core/retry-timing.ts",
+					"line": 151,
+					"name": "calculateRetryTimingDelay"
+				},
+				{
+					"file": "source/core/retry-timing.ts",
+					"line": 153,
+					"name": "delay"
+				},
+				{
+					"file": "source/core/retry-timing.ts",
+					"line": 3,
+					"name": "delayPattern"
+				}
+			]
+		},
+		{
+			"id": "progress-callback",
+			"name": "Progress callback",
+			"definition": "The upload and download progress callbacks the caller passes in, the progress object they receive, and the code that calls them.",
+			"search": "progress",
+			"seeds": [
+				{
+					"file": "source/types/options.ts",
+					"line": 21,
+					"name": "Progress"
+				},
+				{
+					"file": "source/types/options.ts",
+					"line": 317,
+					"name": "onDownloadProgress"
+				},
+				{
+					"file": "source/types/options.ts",
+					"line": 345,
+					"name": "onUploadProgress"
+				},
+				{
+					"file": "source/types/options.ts",
+					"line": 550,
+					"name": "onDownloadProgress"
+				},
+				{
+					"file": "source/types/options.ts",
+					"line": 551,
+					"name": "onUploadProgress"
+				},
+				{
+					"file": "source/core/constants.ts",
+					"line": 281,
+					"name": "onDownloadProgress"
+				},
+				{
+					"file": "source/core/constants.ts",
+					"line": 282,
+					"name": "onUploadProgress"
+				},
+				{
+					"file": "source/utils/body.ts",
+					"line": 78,
+					"name": "withProgress"
+				},
+				{
+					"file": "source/utils/body.ts",
+					"line": 78,
+					"name": "onProgress"
+				},
+				{
+					"file": "source/utils/body.ts",
+					"line": 200,
+					"name": "onDownloadProgress"
+				},
+				{
+					"file": "source/utils/body.ts",
+					"line": 217,
+					"name": "onUploadProgress"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 657,
+					"name": "progressResponse"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1369,
+					"name": "#wrapRequestWithUploadProgress"
+				},
+				{
+					"file": "source/index.ts",
+					"line": 71,
+					"name": "Progress"
+				}
+			]
+		},
+		{
+			"id": "user-abort",
+			"name": "Caller abort",
+			"definition": "The caller stopping a request through the abort signal they pass in, including merging callers' signals and checking whether the caller aborted. Excludes cancelling unused body streams and Ky's own timeout aborts.",
+			"search": "abort",
+			"seeds": [
+				{
+					"file": "source/types/options.ts",
+					"line": 512,
+					"name": "signal"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 447,
+					"name": "#userProvidedAbortSignal"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1277,
+					"name": "#throwIfAbortedByUser"
+				},
+				{
+					"file": "source/utils/merge.ts",
+					"line": 345,
+					"name": "signals"
+				},
+				{
+					"file": "source/utils/merge.ts",
+					"line": 360,
+					"name": "isRootSignal"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 932,
+					"name": "abortSignal"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 942,
+					"name": "abortListener"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 945,
+					"name": "abortPromise"
+				}
+			]
+		},
+		{
+			"id": "jitter",
+			"name": "Jitter (control)",
+			"definition": "Random variation added to the retry delay. Control concept: already named consistently, so the proposed codebase build leaves it unchanged.",
+			"search": "jitter",
+			"control": true,
+			"seeds": [
+				{
+					"file": "source/types/retry.ts",
+					"line": 119,
+					"name": "jitter"
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 33,
+					"name": "jitter"
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 87,
+					"name": "jitter"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 674,
+					"name": "jitteredDelay"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 675,
+					"name": "jitter"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 677,
+					"name": "jitter"
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 678,
+					"name": "jitter"
+				}
+			]
+		}
+	]
+}

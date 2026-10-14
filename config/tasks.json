@@ -1,0 +1,64 @@
+{
+	"agent": {
+		"command": "claude",
+		"model": "sonnet",
+		"maxBudgetUsd": 5,
+		"allowedTools": [
+			"Read",
+			"Grep",
+			"Glob",
+			"Edit",
+			"Write",
+			"Bash(npx tsc:*)",
+			"Bash(npx ava:*)",
+			"Bash(node:*)",
+			"Bash(git diff:*)",
+			"Bash(git status:*)",
+			"Bash(git grep:*)",
+			"Bash(rg:*)",
+			"Bash(grep:*)",
+			"Bash(find:*)",
+			"Bash(xargs:*)",
+			"Bash(sed:*)",
+			"Bash(perl:*)",
+			"Bash(awk:*)",
+			"Bash(ls:*)",
+			"Bash(cat:*)",
+			"Bash(head:*)",
+			"Bash(tail:*)",
+			"Bash(wc:*)",
+			"Bash(cd:*)",
+			"Bash(sort:*)",
+			"Bash(uniq:*)"
+		],
+		"tools": "Read,Grep,Glob,Edit,Write,Bash"
+	},
+	"tasks": [
+		{
+			"id": "find-all",
+			"concept": "retry-count",
+			"kind": "find",
+			"prompt": "This repository is the Ky HTTP client. Find every line under source/, in code or comments, that refers to the retry count: the number of the current retry, which is 1 on the first retry (hooks report 0 for the initial request). Do not edit any files. End your reply with one fenced code block that lists each line as path:line, one per line, with nothing after the block."
+		},
+		{
+			"id": "rename",
+			"concept": "retry-count",
+			"kind": "edit",
+			"prompt": "This repository is the Ky HTTP client. Rename the retry count to \"retry number\" everywhere under source/: every name for it in code (for example, retryCount becomes retryNumber), including public types and hook state, and every comment that refers to it. Update test/ and test-d/ to match. Then run `npx tsc --project tsconfig.json --noEmit` and `npx tsc --project tsconfig.test.json` and fix any errors."
+		},
+		{
+			"id": "retry-count-start",
+			"concept": "retry-count",
+			"kind": "edit",
+			"hiddenTest": "hidden-tests/retry-count-start.ts",
+			"requiredLines": [
+				"source/core/Ky.ts:666",
+				"source/utils/normalize.ts:32",
+				"source/types/retry.ts:68",
+				"source/types/retry.ts:78",
+				"source/types/retry.ts:82"
+			],
+			"prompt": "This repository is the Ky HTTP client. Change Ky so the retry count passed to the retry.delay function is 0 on the first retry instead of 1. The default delays must not change (300 ms before the first retry, then 600 ms, then 1200 ms, and so on), and hooks and shouldRetry must keep reporting the retry count exactly as they do now. Update the documentation comments and any tests that depend on the old numbering. Run `npx tsc --project tsconfig.json --noEmit` when done."
+		}
+	]
+}

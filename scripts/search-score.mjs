@@ -1,0 +1,90 @@
+// Search score: one case-insensitive ripgrep search per concept per version, scored against the ground truth.
+// Find rate: share of the concept's lines the search finds. Term distinctiveness: share of hits that belong to the concept.
+// Writes results/search-score.{json,md} and results/misses-<version>.csv (the lines each search missed;
+// the published codebase's misses are the worklist for building the proposed codebase).
+// Usage: node search-score.mjs
+import {spawnSync} from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import {key, loadConcepts, loadCodebase, projectRoot, readJson, toCsv, versionDir, versions, writeJson} from './lib.mjs';
+
+const {concepts} = loadConcepts();
+const {corpus} = loadCodebase();
+const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
+const present = versions.filter(version => fs.existsSync(path.join(versionDir(version), corpus.directory)));
+if (present.length === 0) {
+	throw new Error('No versions under work/: run scripts/setup.sh first. Nothing written to results/.');
+}
+
+const resultsDir = path.join(projectRoot, 'results');
+fs.mkdirSync(resultsDir, {recursive: true});
+
+const search = (root, pattern) => {
+	const result = spawnSync('rg', ['--ignore-case', '--line-number', '--no-heading', '--with-filename', '--glob', `*${corpus.extension}`, '--regexp', pattern, corpus.directory], {cwd: root, encoding: 'utf8'});
+	if (result.status > 1) {
+		throw new Error(result.stderr);
+	}
+
+	return new Set(result.stdout.split('\n').filter(Boolean).map(line => {
+		const [file, number] = line.split(':');
+		return key(file, Number(number));
+	}));
+};
+
+const lineText = (root, rowKey) => {
+	const [file, line] = rowKey.split(':');
+	return fs.readFileSync(path.join(root, file), 'utf8').split('\n')[Number(line) - 1].trim();
+};
+
+const results = [];
+for (const version of present) {
+	const root = versionDir(version);
+	const misses = [];
+	for (const concept of concepts) {
+		const expected = new Set(truth.concepts[concept.id].all);
+		const hits = search(root, concept.search);
+		const found = [...hits].filter(hit => expected.has(hit));
+		const missed = [...expected].filter(line => !hits.has(line));
+		results.push({
+			version,
+			concept: concept.id,
+			control: Boolean(concept.control),
+			search: concept.search,
+			truthLines: expected.size,
+			hits: hits.size,
+			found: found.length,
+			findRate: expected.size === 0 ? null : found.length / expected.size,
+			termDistinctiveness: hits.size === 0 ? null : found.length / hits.size,
+		});
+		for (const line of missed) {
+			const [file, number] = line.split(':');
+			misses.push([concept.id, file, number, truth.concepts[concept.id].names.includes(line) ? 'name' : 'text', lineText(root, line)]);
+		}
+	}
+
+	fs.writeFileSync(path.join(resultsDir, `misses-${version}.csv`), toCsv([['concept', 'file', 'line', 'source', 'text'], ...misses]));
+}
+
+writeJson(path.join(resultsDir, 'search-score.json'), {provisionalTruth: truth.provisional, results});
+
+const percent = value => value === null ? 'n/a' : `${(value * 100).toFixed(0)}%`;
+const rows = concepts.map(concept => {
+	const cells = present.flatMap(version => {
+		const result = results.find(item => item.version === version && item.concept === concept.id);
+		return [`${percent(result.findRate)} (${result.found}/${result.truthLines})`, percent(result.termDistinctiveness)];
+	});
+	return `| ${concept.name} | \`${concept.search}\` | ${cells.join(' | ')} |`;
+});
+const header = `| Concept | Search | ${present.map(version => `Find rate ${version} | Term distinctiveness ${version}`).join(' | ')} |`;
+const markdown = [
+	'# Search score',
+	'',
+	truth.provisional ? `Ground truth is provisional: ${truth.unresolvedDisagreements} reviewer disagreements are unresolved.` : 'Ground truth is final.',
+	'',
+	header,
+	`|${'---|'.repeat(2 + (present.length * 2))}`,
+	...rows,
+	'',
+].join('\n');
+fs.writeFileSync(path.join(resultsDir, 'search-score.md'), markdown);
+console.log(markdown);

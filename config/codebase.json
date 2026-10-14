@@ -1,0 +1,20 @@
+{
+	"repository": "https://github.com/sindresorhus/ky.git",
+	"commit": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
+	"corpus": {
+		"directory": "source",
+		"extension": ".ts"
+	},
+	"typecheck": [
+		["npx", "tsc", "--project", "tsconfig.json", "--noEmit"],
+		["npx", "tsc", "--project", "tsconfig.test.json", "--noEmit"]
+	],
+	"tests": {
+		"directory": "test",
+		"extension": ".ts",
+		"skip": ["browser.ts"],
+		"command": ["npx", "ava", "--tap", "--timeout=60s"],
+		"rerun": ["npx", "ava", "--tap", "--timeout=60s", "{file}", "--match", "{name}"],
+		"titleSeparator": " › "
+	}
+}

@@ -1,0 +1,5 @@
+node_modules/
+work/
+.remember/
+.DS_Store
+.obsidian/

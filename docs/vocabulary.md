@@ -1,0 +1,88 @@
+# Vocabulary
+
+One term per concept, used in every document, comment, test name, commit message, and result file in this repository. The **Retired** column lists the words that the term replaces; a line added to a markdown file never contains one of them. The table is the machine form: a check reads the Retired column from this file and holds no copy of its own.
+
+## The experiment
+
+| Term                   | Meaning                                                                                                                                                                                                                                                                                                                        | Retired                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| grepability            | A code metric of how easily one can find use text-search tools like `grep`, `ripgrep`, or search bars to find search terms                                                                                                                                                                                                     | grep-ability, greppability, searchability, findability |
+| conceptual grepability | A metric of how well a code base is organized so that text-search tools (like grep, ripgrep, etc.) can find **all relevant code and comments** for **core concepts** of a codebase.                                                                                                                                            |                                                        |
+| concept                | One idea in the codebase that the experiment tracks. Each concept has an id, a definition, a search term, and seeds. The concept configuration holds the list.                                                                                                                                                                 | topic, notion, theme                                   |
+| search score           | The measurement of grepability: one search per concept (scored against the ground truth). The search-score script writes it.                                                                                                                                                                                                   | measure 1, experiment 1, test 1, the search measure    |
+| agent score            | The measurement of the *effect* of grepability: an agent does each task in each version, and the scoring script checks what it found or changed.                                                                                                                                                                               | measure 2, experiment 2, test 2, the agent measure     |
+| codebase               | The code the experiment runs on: one repository pinned to one commit, as the codebase configuration states.                                                                                                                                                                                                                    | target, library, project under test, subject           |
+| published codebase     | The codebase as published, at its pinned commit.                                                                                                                                                                                                                                                                               | arm A, baseline codebase, original codebase            |
+| proposed codebase      | The published codebase with each concept reworded to its search term, with every line number unchanged.                                                                                                                                                                                                                        | arm B, candidate codebase, treated codebase            |
+| snapshot commit        | The one commit each run copy starts from. The scoring script diffs the run copy against it, so edits the agent staged or committed still count.                                                                                                                                                                                | base commit, initial commit, starting commit           |
+| codebase configuration | The file that states which code the experiment runs on and how to check it: the repository, the commit, the corpus, the type check commands, and the test settings (test folder, files to skip, test command, rerun command, and title separator). Every script reads it, so no script holds a fact about the codebase itself. | test run configuration, codebase file, codebase config |
+| corpus                 | The files of the codebase that the experiment covers. Ground truth, searches, and scoring cover only these files.                                                                                                                                                                                                              | source tree, source files                              |
+| search term            | The one regular expression that stands for a concept in a search. The search-score script searches each version with it for the search score. The proposed codebase build rewords the concept so that the search term matches every line of the concept.                                                                       | search pattern, grep pattern, query, keyword           |
+| forms                  | The wider regular expression that matches every wording of a concept in the published codebase. The scoring script uses it to pick the lines a rename task had to change.                                                                                                                                                      | variants, aliases, spellings                           |
+| name | An identifier in the code: a variable, parameter, field, function, class, or type. The type checker resolves each use of a name to the declaration it refers to, so names are the part of the corpus the type checker covers. Comments and strings are text, not names. | identifier, symbol name, variable name |
+| seed                   | A name in the published codebase's code, written as file, line, and name. The type checker starts from it to find the concept's references.                                                                                                                                                                                    | anchor, root symbol, starting point                    |
+| control concept        | A concept whose wording is already consistent, so the proposed codebase build leaves it unchanged. It shows what both scores give when there is nothing to fix.                                                                                                                                                                | baseline concept, placebo                              |
+| version                | One of the two codebases the experiment compares: the published codebase or the proposed codebase. Both scores cover each version.                                                                                                                                                                                             | arm, variant, condition, treatment, branch             |
+| rename                 | A proposed codebase edit to a name. The proposed codebase build replaces every location the type checker returns for the name, so every reference changes and nothing else does.                                                                                                                                               | symbol rename, refactor                                |
+| wording edit           | A proposed codebase edit that replaces exact text on one line of a comment or string.                                                                                                                                                                                                                                          | comment edit, text edit, rewording                     |
+
+## Ground truth
+
+| Term | Meaning | Retired |
+|---|---|---|
+| ground truth | The set of lines in the published codebase where each concept appears. Name lines come from the type checker; text lines come from the reviewers. | truth set, gold standard, answer key, expected lines |
+| name line | A ground truth line that holds a reference the type checker found from a seed. | identifier line, symbol line, code line |
+| text line | A ground truth line that holds a comment or string the reviewers tagged. | comment line, string line, prose line |
+| review sheet | The list of every comment line and string line in the corpus, one row each, with an empty column for concept ids. | candidate list, line list, worksheet |
+| reviewer | A person or an AI stand-in that tags the review sheet. Each reviewer saves a tagged copy under their own name. | annotator, rater, labeler, judge |
+| tag | A concept id a reviewer writes on a row of the review sheet. | label, annotation, vote, mark |
+| agreement | Rows where every reviewer gave the same tag for a concept. Cohen's kappa summarizes it for two reviewers. | consensus, inter-rater reliability, overlap |
+| disagreement | A row and concept that some reviewers tagged and others did not. The ground truth script lists these for a person to decide. | conflict, split, mismatch |
+| adjudication | A person's yes or no on each disagreement. Until every disagreement has one, the ground truth is provisional. | resolution, arbitration, tie-break |
+| provisional | The state of a ground truth with at least one disagreement that has no adjudication. Every result file records whether its truth is provisional. | draft, preliminary, incomplete, tentative |
+
+## Agent runs
+
+| Term | Meaning | Retired |
+|---|---|---|
+| agent | The coding agent command line, run once per task in a run copy with a fixed model, budget, and tool allowlist. | AI, assistant, model, bot, coding agent |
+| task | One prompt the agent gets, tied to one concept. A find task requires a list of lines in the reply. An edit task requires a change to the code. | job, prompt, exercise, problem |
+| find task | A task scored on the lines the agent lists in its reply. | search task, list task, locate task |
+| edit task | A task scored on the lines the agent changed, plus the type check, the tests, and the hidden test when the task has one. | change task, modify task, refactor task |
+| required lines | For an edit task, the lines the agent had to change, fixed in the task configuration. | must-change lines, expected edits |
+| target lines | For a rename task, the lines the agent had to change: the concept's name lines plus text lines whose wording matches the forms in that version. | expected lines, rename lines |
+| cell | One task in one version. The run script spreads runs round-robin over cells, so drift in the model service over time reaches every cell alike. | condition, group, bucket, task-version pair |
+| run | One execution of the agent on one task in one version, in its own run copy, with a random id. | trial, attempt, execution, session, sample |
+| run copy | The fresh copy of a version made for one run. It has the same folder name in every run and links to shared dependencies. | sandbox, workspace, checkout, working copy |
+| key | The file that maps each run id to its version and task. The scoring script reads it last, so a person can judge the blind review sheet first. | mapping, lookup, index, legend |
+| blind review | A person's pass over run diffs with no version shown, to judge unexpected edits before the key is read. | blinded review, masked review |
+| transcript | The agent's full event stream for one run, as newline-delimited JSON. | log, trace, session log, output |
+| final reply | The agent's last message in a run. The scoring script scores find tasks on its last fenced block. | final answer, response, result text, output |
+| baseline | The type check and test results of a version before any agent touches it. A test that fails in a baseline never counts as a regression. | reference results, control results, original results |
+| hidden test | An acceptance test copied into a run copy after the agent finishes, so the agent cannot read it during the run. | hidden acceptance test, secret test, holdout test |
+| regression | A test that passed in the baseline and fails in a run, after a rerun confirms the failure. | breakage, failure, broken test |
+| flaky | A test that both passes and fails across reruns of the same copy. Flaky tests count as neither regressions nor differences. | unstable, nondeterministic, intermittent |
+
+## Scores
+
+| Term | Meaning | Retired |
+|---|---|---|
+| hit | A line a search returned. | match, result, occurrence |
+| found | A hit, or a listed line, that is in the ground truth. | true positive, correct hit |
+| miss | A ground truth line that a search or an agent reply did not include. The published codebase's misses are the worklist for the proposed codebase. | missed line, false negative, gap, omission |
+| find rate | Found lines divided by ground truth lines: of every line where the concept appears, the share a search or an agent reply included. | recall, coverage, completeness, sensitivity, hit rate |
+| term distinctiveness | Found lines divided by hits: of every line a search term returned, the share that belongs to the concept. It is a property of the search term in one version. A low value has two causes. Search term overload: the codebase holds the same word for a second thing that could carry its own name, and a rename fixes it. Structural overlap: the codebase holds distinct concepts that share language, such as rate, annual rate, and effective rate, and the codebase is structurally indistinct for that term. | precision, accuracy, purity, positive predictive value |
+| success | A run that met every condition of its task: no misses, and for an edit task a passing type check, no regressions, and a passing hidden test when there is one. | pass, win, completion, correct run |
+| interval | The Wilson 95% interval around a success count. | confidence interval, error bar, range, margin |
+| p | The two-sided Fisher exact test between published codebase and proposed codebase success counts for one task. | p-value, significance, probability |
+
+## Words kept literal
+
+- **line** is always a line of a file, written as path and number separated by a colon. A line of prose in a document is a sentence.
+- **search** is always one ripgrep run with one search term. Grep, ripgrep, and search are not interchangeable in prose: "search" stands for the operation, "ripgrep" stands for the tool.
+- **test** without a qualifier means one of the codebase's own tests. The scripts' own tests are "unit tests".
+- **copy** never appears without a qualifier. Write "run copy" or "version".
+
+## Applied to Ky
+
+The current codebase is Ky, pinned to the commit in the codebase configuration. The corpus is every TypeScript file under its source folder. The five concepts are `retry count`, `retry delay`, `progress callback`, `caller abort`, and `jitter`, with jitter as the control concept.
