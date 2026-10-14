@@ -46,19 +46,26 @@ One term per concept, used in every document, comment, test name, commit message
 
 | Term | Meaning | Retired |
 |---|---|---|
-| agent | The coding agent command line, run once per task in a run copy with a fixed model, budget, time cap, and tool allowlist. | AI, assistant, model, bot, coding agent |
+| agent | The coding agent command line. A local run starts it once per task in a run copy with a fixed model, budget, time cap, and tool allowlist. A cloud run starts it in a routine, which fixes the model; the budget, time cap, and tool allowlist do not apply. | AI, assistant, model, bot, coding agent |
 | task | One prompt the agent gets, tied to one concept. A find task requires a list of lines in the reply. An edit task requires a change to the code. | job, prompt, exercise, problem |
 | find task | A task scored on the lines the agent lists in its reply. | search task, list task, locate task |
 | edit task | A task scored on the lines the agent changed, plus the type check, the tests, and the hidden test when the task has one. | change task, modify task, refactor task |
 | required lines | For an edit task, the lines the agent had to change, fixed in the task configuration. | must-change lines, expected edits |
 | target lines | For a rename task, the lines the agent had to change: the concept's name lines plus text lines whose wording matches the forms in that version. | expected lines, rename lines |
 | cell | One task in one version. The run script spreads runs round-robin over cells, so drift in the model service over time reaches every cell alike. | condition, group, bucket, task-version pair |
-| run | One execution of the agent on one task in one version, in its own run copy, with a random id. | trial, attempt, execution, session, sample |
-| run copy | The fresh copy of a version made for one run. It has the same folder name in every run and links to shared dependencies. | sandbox, workspace, checkout, working copy |
+| run | One execution of the agent on one task in one version, with a random id. A local run executes on this machine in its own run copy. A cloud run executes in a routine. | trial, attempt, execution, session, sample |
+| run copy | The fresh copy of a version made for one run. It has the same folder name in every run and links to shared dependencies. A cloud run gets its run copy when the collect script gathers the run, with the run branch's changes applied. | sandbox, workspace, checkout, working copy |
 | key | The file that maps each run id to its version and task. The summary script reads it last, after the blind review sheet is answered. The scoring script reads it to score each run, and writes no version into any file a person opens. | mapping, lookup, index, legend |
 | blind review | A person's pass over run diffs with no version shown, to mark wrong edits before the key is read. | blinded review, masked review |
 | blind review sheet | The list of every run, one row each, in shuffled order with no version. The person doing the blind review writes yes or no in the wrong_edits column. A rescore keeps the rows and answers already there and adds only new runs. | judging sheet, blind sheet, review form |
 | wrong edit | An edit in a run's diff that the person doing the blind review marks as incorrect or not asked for. The summary counts the runs marked yes next to the runs answered; the count leaves success unchanged. | bad edit, unexpected edit, bad change |
+| cloud run | A run that executes in a routine on a run repository, in place of this machine. It reports the diff and the final reply, and no cost, time, turns, or tool counts. | remote run, web run, hosted run |
+| routine | A saved claude.ai configuration of a prompt, a repository, and an API trigger. One routine exists per task and version; the fire script starts a cloud run by calling its trigger. | scheduled task, automation, job, workflow |
+| run repository | The private GitHub repository that holds one version for cloud runs: the version's files and the start hook, as one commit. Its name shows no version. | cloud repository, mirror, copy of the version |
+| run branch | The branch that a cloud run pushes its changes and reply file to. Its name is the run id behind the run branch prefix in the task configuration. | result branch, output branch, answer branch |
+| reply file | The file in which a cloud run writes its final reply, because the fire request returns no reply. The collect script reads it into the run's final reply. | answer file, output file, result file |
+| start hook | The small file in each run repository that installs dependencies and compiles when a cloud run starts, so the agent can run the type check and the tests. Both versions carry the same hook. | setup script, bootstrap, init script |
+| pending run | A fired cloud run whose run branch has not appeared. After the pending limit in the task configuration, the collect script records it as a failed run with no changes. | queued run, waiting run, in-flight run |
 | transcript | The agent's full event stream for one run, as newline-delimited JSON. | log, trace, session log, output |
 | final reply | The agent's last message in a run. The scoring script scores find tasks on its last fenced block. | final answer, response, result text, output |
 | baseline | The type check and test results of a version before any agent touches it. A test that fails in a baseline never counts as a regression. | reference results, control results, original results |
