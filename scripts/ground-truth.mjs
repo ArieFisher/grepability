@@ -8,7 +8,7 @@
 // Usage: node ground-truth.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {checkReviewers, createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, relative, runChecked, splitKey, toCsv, versionDir, writeJson} from './lib.mjs';
+import {checkReviewers, createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, relative, runChecked, splitKey, toCsv, usedAdjudicators, versionDir, writeJson} from './lib.mjs';
 
 const root = versionDir(publishedVersion);
 const {concepts} = loadConcepts();
@@ -58,12 +58,13 @@ const reviewers = reviewerFiles.map(file => ({
 const rowKeys = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'), 'utf8')).map(row => key(row.file, row.line));
 checkReviewers(rowKeys, reviewers, new Set(concepts.map(concept => concept.id)));
 const adjudicationFile = path.join(truthDir, 'adjudication.csv');
-const {decisions: adjudication, adjudicators} = readAdjudication(fs.existsSync(adjudicationFile)
+const adjudication = readAdjudication(fs.existsSync(adjudicationFile)
 	? fromCsv(fs.readFileSync(adjudicationFile, 'utf8'))
 	: []);
 
 const textLines = new Map(concepts.map(concept => [concept.id, new Set()]));
 const disagreements = [];
+const disagreementKeys = new Set();
 const agreement = {};
 let unresolved = 0;
 for (const concept of concepts) {
@@ -77,7 +78,9 @@ for (const concept of concepts) {
 			textLines.get(concept.id).add(rowKey);
 		} else if (votes.some(Boolean)) {
 			split++;
-			const decision = adjudication.get(`${rowKey}|${concept.id}`) ?? '';
+			const decisionKey = `${rowKey}|${concept.id}`;
+			disagreementKeys.add(decisionKey);
+			const {decision, adjudicator} = adjudication.get(decisionKey) ?? {decision: '', adjudicator: ''};
 			if (decision === 'yes') {
 				textLines.get(concept.id).add(rowKey);
 			} else if (decision !== 'no') {
@@ -85,7 +88,7 @@ for (const concept of concepts) {
 			}
 
 			const {row} = reviewers[0].tags.get(rowKey);
-			disagreements.push([row.file, row.line, concept.id, reviewers.filter((_, i) => votes[i]).map(reviewer => reviewer.name).join(' '), decision, '', row.text]);
+			disagreements.push([row.file, row.line, concept.id, reviewers.filter((_, i) => votes[i]).map(reviewer => reviewer.name).join(' '), decision, adjudicator, row.text]);
 		} else {
 			neither++;
 		}
@@ -104,6 +107,7 @@ for (const concept of concepts) {
 	agreement[concept.id] = {agreedYes: both, disagreed: split, kappa: kappa === null ? null : Number(kappa.toFixed(3))};
 }
 
+const adjudicators = usedAdjudicators(adjudication, disagreementKeys);
 fs.writeFileSync(path.join(truthDir, 'disagreements.csv'), toCsv([['file', 'line', 'concept', 'tagged_by', 'decision', 'adjudicator', 'text'], ...disagreements]));
 
 const sortKeys = keys => [...keys].sort((a, b) => {

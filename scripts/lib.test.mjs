@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, readWrongEdits, regressionCandidates, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, wilson} from './helpers.mjs';
+import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, readWrongEdits, regressionCandidates, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -386,32 +386,45 @@ test('successScore counts successes over runs with the Wilson interval, and give
 	assert.equal(successScore([]), null);
 });
 
-test('readAdjudication maps each decided row to its decision and lists the adjudicators', () => {
-	const rows = [
-		{file: 'source/a.ts', line: '3', concept: 'count', decision: 'Yes ', adjudicator: 'claude'},
-		{file: 'source/a.ts', line: '4', concept: 'count', decision: 'no', adjudicator: 'arie'},
-		{file: 'source/a.ts', line: '5', concept: 'count', decision: '', adjudicator: ''},
-	];
-	const {decisions, adjudicators} = readAdjudication(rows);
-	assert.equal(decisions.get('source/a.ts:3|count'), 'yes');
-	assert.equal(decisions.get('source/a.ts:4|count'), 'no');
+const adjudicationRows = [
+	{file: 'source/a.ts', line: '3', concept: 'count', decision: 'Yes ', adjudicator: 'claude'},
+	{file: 'source/a.ts', line: '4', concept: 'count', decision: 'no', adjudicator: 'arie'},
+	{file: 'source/a.ts', line: '5', concept: 'count', decision: '', adjudicator: ''},
+];
+
+test('readAdjudication maps each decided row to its decision and its adjudicator', () => {
+	const decisions = readAdjudication(adjudicationRows);
+	assert.deepEqual(decisions.get('source/a.ts:3|count'), {decision: 'yes', adjudicator: 'claude'});
+	assert.deepEqual(decisions.get('source/a.ts:4|count'), {decision: 'no', adjudicator: 'arie'});
 	assert.equal(decisions.has('source/a.ts:5|count'), false);
-	assert.deepEqual(adjudicators, ['arie', 'claude']);
 });
 
-test('readAdjudication throws on a decision without an adjudicator, an unknown decision, or a missing column', () => {
+test('readAdjudication throws on a decision without an adjudicator, an unknown decision, a missing column, or a repeated row', () => {
 	const row = {file: 'source/a.ts', line: '3', concept: 'count', decision: 'yes', adjudicator: 'claude'};
 	assert.throws(() => readAdjudication([{...row, adjudicator: ' '}]), /adjudicator/);
 	assert.throws(() => readAdjudication([{...row, decision: 'maybe'}]), /maybe/);
 	const {adjudicator, ...withoutColumn} = row;
 	assert.throws(() => readAdjudication([withoutColumn]), /adjudicator/);
+	assert.throws(() => readAdjudication([row, {...row, decision: 'no'}]), /twice/);
+});
+
+test('usedAdjudicators lists who decided the disagreements the build used', () => {
+	const decisions = readAdjudication(adjudicationRows);
+	assert.deepEqual(usedAdjudicators(decisions, new Set(['source/a.ts:3|count', 'source/a.ts:4|count'])), ['arie', 'claude']);
+});
+
+test('usedAdjudicators throws on a decision that matches no disagreement', () => {
+	const decisions = readAdjudication(adjudicationRows);
+	assert.throws(() => usedAdjudicators(decisions, new Set(['source/a.ts:3|count'])), /source\/a\.ts:4\|count/);
 });
 
 test('truthStatement states whether the ground truth is final and who adjudicated it', () => {
 	assert.equal(truthStatement({provisional: false, unresolvedDisagreements: 0, adjudicators: ['claude']}), 'Ground truth is final. Adjudicator: claude.');
 	assert.equal(truthStatement({provisional: false, unresolvedDisagreements: 0, adjudicators: []}), 'Ground truth is final. No disagreement needed adjudication.');
+	assert.equal(truthStatement({provisional: true, unresolvedDisagreements: 5, adjudicators: []}), 'Ground truth is provisional: 5 reviewer disagreements are unresolved. No disagreement has an adjudication yet.');
 	assert.equal(truthStatement({provisional: true, unresolvedDisagreements: 2, adjudicators: ['arie', 'claude']}), 'Ground truth is provisional: 2 reviewer disagreements are unresolved. Adjudicators: arie, claude.');
 	assert.throws(() => truthStatement({provisional: false, unresolvedDisagreements: 0}), /adjudicators/);
+	assert.throws(() => truthStatement(undefined), /adjudicators/);
 });
 
 test('csv round-trips quoted fields', () => {

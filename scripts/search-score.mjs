@@ -73,7 +73,7 @@ for (const version of present) {
 }
 
 fs.mkdirSync(resultsDir, {recursive: true});
-writeJson(path.join(resultsDir, 'search-score.json'), {provisionalTruth: truth.provisional, adjudicators: truth.adjudicators, results});
+writeJson(path.join(resultsDir, 'search-score.json'), {truth: {provisional: truth.provisional, unresolvedDisagreements: truth.unresolvedDisagreements, adjudicators: truth.adjudicators}, results});
 for (const [version, misses] of missesByVersion) {
 	fs.writeFileSync(path.join(resultsDir, `misses-${version}.csv`), toCsv([['concept', 'file', 'line', 'source', 'text'], ...misses]));
 }

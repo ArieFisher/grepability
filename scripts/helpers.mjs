@@ -191,12 +191,11 @@ export const checkReviewers = (sheetKeys, reviewers, conceptIds) => {
 	}
 };
 
-// Reads the adjudication rows: each decided row maps file:line|concept to yes or no, and every decided
-// row records who decided it, a person or an AI stand-in. A blank decision leaves the row unresolved.
-// A decision without an adjudicator, or a decision other than yes or no, throws.
+// Reads the adjudication rows: each decided row maps file:line|concept to its decision, yes or no, and its
+// adjudicator, a person or an AI stand-in. A blank decision leaves the row unresolved. A decision without an
+// adjudicator, a decision other than yes or no, or a row decided twice throws.
 export const readAdjudication = rows => {
 	const decisions = new Map();
-	const adjudicators = new Set();
 	for (const row of rows) {
 		const decision = row.decision.trim().toLowerCase();
 		if (decision === '') {
@@ -213,23 +212,39 @@ export const readAdjudication = rows => {
 			throw new Error(`Adjudication of ${rowKey} has a decision and no adjudicator; write who decided it.`);
 		}
 
-		decisions.set(rowKey, decision);
-		adjudicators.add(adjudicator);
+		if (decisions.has(rowKey)) {
+			throw new Error(`Adjudication of ${rowKey} appears twice; keep one row.`);
+		}
+
+		decisions.set(rowKey, {decision, adjudicator});
 	}
 
-	return {decisions, adjudicators: [...adjudicators].sort()};
+	return decisions;
 };
 
-// The sentence each result file prints about its ground truth: final or provisional, and who adjudicated.
-// A ground truth built before adjudicators were recorded throws, so the script rebuilds it.
-export const truthStatement = ({provisional, unresolvedDisagreements, adjudicators}) => {
+// The adjudicators of the decisions the ground truth build used, sorted. A decision that matches no
+// disagreement throws, because a wrong file, line, or concept on the row would otherwise go unused unseen.
+export const usedAdjudicators = (decisions, usedKeys) => {
+	const unused = [...decisions.keys()].filter(rowKey => !usedKeys.has(rowKey));
+	if (unused.length > 0) {
+		throw new Error(`Adjudication rows match no disagreement: ${unused.slice(0, 5).join(', ')}. Fix or remove them.`);
+	}
+
+	return [...new Set([...decisions.values()].map(entry => entry.adjudicator))].sort();
+};
+
+// The sentence a script prints about the ground truth in each result file: final or provisional, and who
+// adjudicated. The script throws on a ground truth built before adjudicators were recorded, so the person
+// rebuilds it.
+export const truthStatement = ({provisional, unresolvedDisagreements, adjudicators} = {}) => {
 	if (!Array.isArray(adjudicators)) {
-		throw new Error('The ground truth lists no adjudicators: run scripts/ground-truth.mjs.');
+		throw new Error('The ground truth state lists no adjudicators: rerun scripts/ground-truth.mjs and the scripts after it.');
 	}
 
 	const state = provisional ? `Ground truth is provisional: ${unresolvedDisagreements} reviewer disagreements are unresolved.` : 'Ground truth is final.';
+	const none = provisional ? 'No disagreement has an adjudication yet.' : 'No disagreement needed adjudication.';
 	const decidedBy = adjudicators.length === 0
-		? 'No disagreement needed adjudication.'
+		? none
 		: `${adjudicators.length === 1 ? 'Adjudicator' : 'Adjudicators'}: ${adjudicators.join(', ')}.`;
 	return `${state} ${decidedBy}`;
 };

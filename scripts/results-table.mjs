@@ -1,6 +1,7 @@
 // Results table: each concept's search score and agent score per version, with the change between versions
 // and an overall row that leaves out the control concept.
-// Reads truth/truth.json, results/search-score.json (from search-score.mjs), and results/agent-runs.json (from
+// Reads results/search-score.json (from search-score.mjs), which holds the ground truth state its scores used,
+// and results/agent-runs.json (from
 // summarize-agents.mjs).
 // Without agent runs the script writes n/a for every agent score and a note above the table.
 // Writes results/results-table.md.
@@ -53,7 +54,7 @@ const conceptLine = row => [
 ];
 const overallLine = ['**Overall**', ...scoreCells(table.overall), ...versions.flatMap(() => ['', ''])];
 const notes = [
-	truthStatement(readJson(path.join(projectRoot, 'truth', 'truth.json'))),
+	truthStatement(search.truth),
 	...(agentRuns.length === 0 ? ['No agent runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.'] : []),
 	...(table.skippedRuns > 0 ? [`${table.skippedRuns} edit runs were scored without the type check, the tests, or the hidden test (--skip-tests), and count as successes when they missed no line.`] : []),
 ];
