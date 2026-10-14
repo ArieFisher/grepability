@@ -78,7 +78,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 	} else {
 		const changed = changedOriginalLines(diff);
 		const sourceChanged = [...changed].filter(item => inCorpus(item));
-		// Lines the agent had to change: the task's required lines, or for a rename, the concept's lines that
+		// Lines the agent had to change: the task's required lines, or for a rename task, the concept's lines that
 		// name it (a name the type checker found, or wording matching one of the concept's forms in that version).
 		if (!task.requiredLines && !concept.forms) {
 			throw new Error(`Concept ${concept.id} has no "forms" pattern in config/concepts.json, which task ${task.id} needs to pick its target lines.`);

@@ -39,7 +39,8 @@ One term per concept, used in every document, comment, test name, commit message
 | tag | A concept id a reviewer writes on a row of the review sheet. | label, annotation, vote, mark |
 | agreement | Rows where every reviewer gave the same tag for a concept. Cohen's kappa summarizes it for two reviewers. | consensus, inter-rater reliability, overlap |
 | disagreement | A row and concept that some reviewers tagged and others did not. The ground truth script lists these for a person to decide. | conflict, split, mismatch |
-| adjudication | A person's yes or no on each disagreement. Until every disagreement has one, the ground truth is provisional. | resolution, arbitration, tie-break |
+| adjudication | A yes or no on each disagreement, from a person or an AI stand-in. Until every disagreement has one, the ground truth is provisional. | resolution, arbitration, tie-break |
+| adjudicator | The person or AI stand-in who gave an adjudication. The adjudication file records one per decided row, the ground truth lists them, and every result file prints them. | arbiter, tie-breaker, decider |
 | provisional | The state of a ground truth with at least one disagreement that has no adjudication. Every result file records whether its truth is provisional. | draft, preliminary, incomplete, tentative |
 
 ## Agent runs
@@ -50,6 +51,7 @@ One term per concept, used in every document, comment, test name, commit message
 | task | One prompt the agent gets, tied to one concept. A find task requires a list of lines in the reply. An edit task requires a change to the code. | job, prompt, exercise, problem |
 | find task | A task scored on the lines the agent lists in its reply. | search task, list task, locate task |
 | edit task | A task scored on the lines the agent changed, plus the type check, the tests, and the hidden test when the task has one. | change task, modify task, refactor task |
+| rename task | The edit task that has the agent rename a concept everywhere: every name in code and every comment. It is scored on the target lines. The proposed codebase build edit to a name is a rename, not a rename task. | rename job, renaming exercise |
 | required lines | For an edit task, the lines the agent had to change, fixed in the task configuration. | must-change lines, expected edits |
 | target lines | For a rename task, the lines the agent had to change: the concept's name lines plus text lines whose wording matches the forms in that version. | expected lines, rename lines |
 | cell | One task in one version. The run script spreads runs round-robin over cells, so drift in the model service over time reaches every cell alike. | condition, group, bucket, task-version pair |
