@@ -51,7 +51,7 @@ const lines = [
 	'# Agent runs',
 	'',
 	truth.provisional ? 'Ground truth is provisional.' : 'Ground truth is final.',
-	skipped > 0 ? `${skipped} edit runs were scored on line coverage only (--skip-tests): no type check, tests, or hidden test.` : 'Every edit run was type-checked and tested.',
+	skipped > 0 ? `${skipped} edit runs were scored on find rate only (--skip-tests): no type check, tests, or hidden test.` : 'Every edit run was type-checked and tested.',
 	unanswered > 0 ? `${unanswered} of ${scored.length} runs have no wrong_edits answer on the blind review sheet.` : 'Every run has a wrong_edits answer on the blind review sheet.',
 	'',
 	'Success shows the count and its Wilson 95% interval. p is a two-sided Fisher exact test of success between versions; with at most ${runsPerCell} runs per task and version, only large gaps fall below 0.05. Wrong edits shows the runs marked yes over the runs answered; it does not change success.',

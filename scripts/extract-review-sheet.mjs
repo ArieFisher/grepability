@@ -1,4 +1,4 @@
-// Writes the reviewer sheet: every comment line and every line holding a string literal in the published codebase.
+// Writes the review sheet: every comment line and every line holding a string literal in the published codebase.
 // Reviewers tag each row with the concept ids it refers to. Names in code are covered by the type checker.
 // Usage: node extract-review-sheet.mjs
 import fs from 'node:fs';

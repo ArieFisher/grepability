@@ -3,11 +3,12 @@ import {execFileSync, spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
 
 export * from './helpers.mjs';
 
-export const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+export const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const workDir = path.join(projectRoot, 'work');
 // The two versions of the codebase: the published codebase and the proposed codebase. Each lives in work/<version>.
 export const publishedVersion = 'published';
@@ -150,16 +151,16 @@ export const positionInText = (text, file, line, name, nth = 0) => {
 	const lineText = text.slice(lineStart).split('\n')[0];
 	let column = -1;
 	for (let i = 0; i <= nth; i++) {
-		column = findIdentifier(lineText, name, column + 1);
+		column = findName(lineText, name, column + 1);
 		if (column === -1) {
-			throw new Error(`Identifier ${name} (occurrence ${nth}) not found at ${file}:${line}`);
+			throw new Error(`Name ${name} (occurrence ${nth}) not found at ${file}:${line}`);
 		}
 	}
 
 	return lineStart + column;
 };
 
-const findIdentifier = (lineText, name, from) => {
+const findName = (lineText, name, from) => {
 	const pattern = new RegExp(`(?<![\\w$#])${name.replaceAll(/[$#]/g, String.raw`\$&`)}(?![\\w$])`, 'g');
 	pattern.lastIndex = from;
 	const match = pattern.exec(lineText);

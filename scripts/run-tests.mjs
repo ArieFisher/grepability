@@ -1,4 +1,4 @@
-// Runs the codebase's type checks and tests in one copy of the code and records pass/fail per test.
+// Runs the codebase's type checks and tests in one version or run copy and records pass/fail per test.
 // The commands come from config/codebase.json; the test command must print TAP.
 // The result file is written once the commands have run. A command that cannot start, or a test run
 // that prints no TAP result, stops the script with no result file. A failed type check still writes

@@ -1,4 +1,4 @@
-// Stand-in reviewer: an AI model tags the reviewer sheet, one chunk per fresh session, with no tools.
+// AI stand-in reviewer: tags the review sheet, one chunk per fresh session, with no tools.
 // Each run is independent; run it twice with different names to get two reviewers. A person can
 // replace either file by tagging truth/review-sheet.csv by hand.
 // Each sheet line is shown with the source lines around it (--context, default 3 each side), so the

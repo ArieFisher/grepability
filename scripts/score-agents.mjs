@@ -1,12 +1,12 @@
 // Scores agent runs.
 //   find tasks: find rate of the listed lines against the ground truth.
 //   edit tasks: which concept lines (or required lines) the agent changed, which other lines it changed,
-//               type checks, test regressions, and the hidden acceptance test if the task has one.
+//               type checks, test regressions, and the hidden test if the task has one.
 // Writes work/runs/scores.json (no version) and results/blind-review.csv (no version column; a person marks
 // wrong edits on it before looking at the key). An existing sheet keeps its rows and answers; only new runs are added.
 // Next: summarize-agents.mjs joins the scores to the key, after the sheet is answered.
-// Without --skip-tests, every run's copy and both versions' baseline test results must be present;
-// a missing one stops the script rather than scoring the run on line coverage alone.
+// Without --skip-tests, every run copy and both versions' baseline test results must be present;
+// a missing one stops the script rather than scoring the run on find rate alone.
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,7 +46,7 @@ const baseline = Object.fromEntries(versions.map(version => {
 	}
 
 	if (!skipTests) {
-		throw new Error(`Missing baseline ${file}: run scripts/run-tests.mjs ${version}, or pass --skip-tests to score line coverage only.`);
+		throw new Error(`Missing baseline ${file}: run scripts/run-tests.mjs ${version}, or pass --skip-tests to score find rate only.`);
 	}
 
 	return [version, {tests: {}}];
@@ -55,7 +55,7 @@ const baseline = Object.fromEntries(versions.map(version => {
 const scored = [];
 for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 	if (!versions.includes(version)) {
-		throw new Error(`Run : the key names version "", expected one of . A run recorded before the versions were named needs a fresh run.`);
+		throw new Error(`Run ${runId}: the key names version "${version}", expected one of ${versions.join(', ')}. A run recorded before the versions were named needs a fresh run.`);
 	}
 
 	const runDir = path.join(runsDir, runId);
@@ -108,7 +108,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		row.testsRun = !skipTests;
 
 		if (!skipTests && !fs.existsSync(run.directory)) {
-			throw new Error(`Run ${runId}: copy ${run.directory} is gone, so its tests cannot run. Pass --skip-tests to score line coverage only.`);
+			throw new Error(`Run ${runId}: run copy ${run.directory} is gone, so its tests cannot run. Pass --skip-tests to score find rate only.`);
 		}
 
 		if (!skipTests) {

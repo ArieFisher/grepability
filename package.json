@@ -2,7 +2,6 @@
   "name": "grep-test",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "test": "node --test scripts/"
   },
@@ -10,7 +9,10 @@
   "author": "",
   "license": "MIT",
   "type": "module",
-  "private": "true",
+  "private": true,
+  "engines": {
+    "node": ">=21"
+  },
   "dependencies": {
     "typescript": "^5.9.3"
   }

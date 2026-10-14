@@ -1,4 +1,4 @@
-// Agent score: runs an AI coding agent on each task in each version, in fresh, identical-looking copies.
+// Agent score: runs the agent on each task in each version, in fresh, identical-looking run copies.
 // Same tools and no user settings in every run. Each run gets a random id; the id-to-version key is kept in work/runs/key.json so scoring can be blind.
 // The run copy stays under work/runs/<id>/ so scoring can run its tests later.
 // Usage: node run-agents.mjs [--runs 10] [--tasks find-all,rename,retry-count-start] [--versions published,proposed] [--parallel 2] [--model sonnet]
@@ -26,8 +26,8 @@ const keyFile = path.join(runsDir, 'key.json');
 fs.mkdirSync(runsDir, {recursive: true});
 const key = fs.existsSync(keyFile) ? readJson(keyFile) : {};
 
-// Every copy looks the same from inside: same folder name (the repository's own), one fresh commit, shared dependencies.
-// Returns the copy's path and the snapshot commit, which the diff after the run is taken against.
+// Every run copy looks the same from inside: same folder name (the repository's own), one fresh commit, shared dependencies.
+// Returns the run copy's path and the snapshot commit, which the diff after the run is taken against.
 const copyName = path.basename(loadCodebase().repository, '.git');
 const makeCopy = (version, runId) => {
 	const directory = path.join(runsDir, runId, copyName);
@@ -117,7 +117,7 @@ const worker = async () => {
 		// eslint-disable-next-line no-await-in-loop
 		const outcome = await runAgent(task, directory, path.join(runDir, 'transcript.jsonl'));
 		const summary = summarizeTranscript(fs.readFileSync(path.join(runDir, 'transcript.jsonl'), 'utf8'));
-		// An agent that deleted the copy's .git leaves no diff to take. The run is recorded as an error with an empty diff.
+		// An agent that deleted the run copy's .git leaves no diff to take. The run is recorded as an error with an empty diff.
 		let diff = '';
 		let diffError;
 		try {

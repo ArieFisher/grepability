@@ -1,7 +1,7 @@
 // Builds the ground truth: every line of the published codebase where each concept appears.
 //   Names in code: the type checker's references for each seed symbol in config/concepts.json.
 //   Comments and strings: lines the reviewers tagged (truth/reviewer-*.csv). Lines all reviewers agree on
-//   count; disagreements go to truth/disagreements.csv. Copy that file to truth/adjudication.csv and set
+//   count; disagreements go to truth/disagreements.csv. Duplicate that file as truth/adjudication.csv and set
 //   `decision` to yes or no on each row; adjudicated rows then count too. Without adjudication the
 //   truth is marked provisional.
 // Usage: node ground-truth.mjs
@@ -22,11 +22,11 @@ if (checkedOut !== loadCodebase().commit) {
 const service = createService(root);
 
 // Names in code. A seed that the type checker resolves to no reference means a wrong file, line, or name.
-const identifierLines = new Map(concepts.map(concept => [concept.id, new Set()]));
+const nameLines = new Map(concepts.map(concept => [concept.id, new Set()]));
 for (const concept of concepts) {
 	for (const seed of concept.seeds) {
 		const position = positionOf(root, seed.file, seed.line, seed.name, seed.nth ?? 0);
-		identifierLines.get(concept.id).add(key(seed.file, seed.line));
+		nameLines.get(concept.id).add(key(seed.file, seed.line));
 		const symbols = service.findReferences(path.join(root, seed.file), position) ?? [];
 		if (symbols.every(symbol => symbol.references.length === 0)) {
 			throw new Error(`Seed ${seed.name} at ${seed.file}:${seed.line} of concept ${concept.id} resolves to no references.`);
@@ -36,7 +36,7 @@ for (const concept of concepts) {
 			for (const reference of symbol.references) {
 				const file = relative(root, reference.fileName);
 				if (inCorpus(file)) {
-					identifierLines.get(concept.id).add(key(file, lineOf(root, file, reference.textSpan.start)));
+					nameLines.get(concept.id).add(key(file, lineOf(root, file, reference.textSpan.start)));
 				}
 			}
 		}
@@ -118,7 +118,7 @@ const truth = {
 	unresolvedDisagreements: unresolved,
 	agreement,
 	concepts: Object.fromEntries(concepts.map(concept => {
-		const names = identifierLines.get(concept.id);
+		const names = nameLines.get(concept.id);
 		const text = textLines.get(concept.id);
 		return [concept.id, {
 			names: sortKeys(names),
@@ -136,5 +136,5 @@ for (const concept of concepts) {
 }
 
 console.log(truth.provisional
-	? `Provisional: ${unresolved} disagreements unresolved. Decide them in truth/adjudication.csv (copy of truth/disagreements.csv) and rerun.`
+	? `Provisional: ${unresolved} disagreements unresolved. Decide them in truth/adjudication.csv (a duplicate of truth/disagreements.csv) and rerun.`
 	: 'All disagreements resolved.');

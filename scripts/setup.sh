@@ -15,10 +15,14 @@ if [ ! -d "$published/.git" ]; then
 	git clone -q "$repository" "$published"
 fi
 
+origin="$(git -C "$published" remote get-url origin)"
+[ "$origin" = "$repository" ] || { echo "$published has origin $origin, expected $repository; remove it or fix the configuration" >&2; exit 1; }
+
 git -C "$published" checkout -q "$commit"
+[ "$(git -C "$published" rev-parse HEAD)" = "$commit" ] || { echo "$published is not at the pinned commit $commit" >&2; exit 1; }
 git -C "$published" diff --quiet || { echo "$published has local changes; reset it first" >&2; exit 1; }
 
-# Dependencies live in work/deps so every copy of the code shares them through a symlink.
+# Dependencies live in work/deps so every version and run copy shares them through a symlink.
 deps="$here/work/deps/node_modules"
 if [ ! -d "$deps" ]; then
 	(cd "$published" && npm install --ignore-scripts --no-audit --no-fund >/dev/null)

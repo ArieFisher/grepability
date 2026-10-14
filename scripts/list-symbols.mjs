@@ -1,4 +1,4 @@
-// Lists identifiers whose name matches a pattern, grouped by the symbol they resolve to.
+// Lists the names that match a pattern, grouped by the declaration each resolves to.
 // Helps reviewers pick seed symbols for a concept. Usage: node list-symbols.mjs <version> <regex>
 import path from 'node:path';
 import ts from 'typescript';
