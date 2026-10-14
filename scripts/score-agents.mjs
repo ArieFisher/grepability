@@ -10,10 +10,10 @@
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {changedOriginalLines, corpusFiles, fisherExact, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadConcepts, loadCodebase, projectRoot, readJson, rerunTest, shuffle, toCsv, versionDir, versions, wilson, workDir, writeJson} from './lib.mjs';
+import {changedOriginalLines, corpusFiles, fisherExact, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, percent, projectRoot, proposedVersion, publishedVersion, readJson, rerunTest, shuffle, splitKey, toCsv, versionDir, versions, wilson, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
-const config = readJson(path.join(projectRoot, 'config', 'tasks.json'));
+const config = loadTasks();
 const {concepts} = loadConcepts();
 const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
 const runsDir = path.join(workDir, 'runs');
@@ -22,9 +22,9 @@ const resultsDir = path.join(projectRoot, 'results');
 fs.mkdirSync(resultsDir, {recursive: true});
 
 // Files an agent may name in a find reply: the version's corpus when present, else every file in the truth.
-const knownFiles = fs.existsSync(path.join(versionDir('published'), loadCodebase().corpus.directory))
-	? corpusFiles(versionDir('published'))
-	: [...new Set(Object.values(truth.concepts).flatMap(entry => entry.all.map(line => line.split(':')[0])))];
+const knownFiles = fs.existsSync(path.join(versionDir(publishedVersion), loadCodebase().corpus.directory))
+	? corpusFiles(versionDir(publishedVersion))
+	: [...new Set(Object.values(truth.concepts).flatMap(entry => entry.all.map(line => splitKey(line).file)))];
 
 const baseline = Object.fromEntries(versions.map(version => {
 	const file = path.join(workDir, `tests-${version}.json`);
@@ -85,8 +85,8 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 				return true;
 			}
 
-			const [file, line] = item.split(':');
-			const text = fs.readFileSync(path.join(versionDir(version), file), 'utf8').split('\n')[Number(line) - 1];
+			const {file, line} = splitKey(item);
+			const text = fs.readFileSync(path.join(versionDir(version), file), 'utf8').split('\n')[line - 1];
 			return new RegExp(concept.forms, 'i').test(text);
 		}));
 		if (targets.size === 0) {
@@ -157,7 +157,6 @@ const median = values => {
 };
 
 const format = (value, digits = 2) => value === null ? 'n/a' : value.toFixed(digits);
-const percent = value => `${Math.round(value * 100)}%`;
 const skipped = scored.filter(row => row.testsRun === false).length;
 const lines = [
 	'# Agent runs',
@@ -173,8 +172,10 @@ const lines = [
 for (const task of config.tasks) {
 	const byVersion = Object.fromEntries(versions.map(version => [version, scored.filter(row => row.task === task.id && row.version === version)]));
 	const successes = Object.fromEntries(versions.map(version => [version, byVersion[version].filter(row => row.success).length]));
-	const p = byVersion.published.length > 0 && byVersion.proposed.length > 0
-		? fisherExact(successes.published, byVersion.published.length - successes.published, successes.proposed, byVersion.proposed.length - successes.proposed)
+	const published = byVersion[publishedVersion];
+	const proposed = byVersion[proposedVersion];
+	const p = published.length > 0 && proposed.length > 0
+		? fisherExact(successes[publishedVersion], published.length - successes[publishedVersion], successes[proposedVersion], proposed.length - successes[proposedVersion])
 		: null;
 	for (const version of versions) {
 		const rows = byVersion[version];
@@ -183,7 +184,7 @@ for (const task of config.tasks) {
 		}
 
 		const interval = wilson(successes[version], rows.length);
-		lines.push(`| ${task.id} | ${version} | ${rows.length} | ${successes[version]}/${rows.length} | ${percent(interval.low)} to ${percent(interval.high)} | ${version === 'published' ? format(p, 3) : ''} | ${format(mean(rows.map(row => row.findRate)))} | ${format(mean(rows.map(row => row.missed)), 1)} | ${format(median(rows.map(row => row.wallSeconds)), 0)} | ${format(mean(rows.map(row => row.costUsd)))} | ${format(mean(rows.map(row => row.searchCalls)), 1)} |`);
+		lines.push(`| ${task.id} | ${version} | ${rows.length} | ${successes[version]}/${rows.length} | ${percent(interval.low)} to ${percent(interval.high)} | ${version === publishedVersion ? format(p, 3) : ''} | ${format(mean(rows.map(row => row.findRate)))} | ${format(mean(rows.map(row => row.missed)), 1)} | ${format(median(rows.map(row => row.wallSeconds)), 0)} | ${format(mean(rows.map(row => row.costUsd)))} | ${format(mean(rows.map(row => row.searchCalls)), 1)} |`);
 	}
 }
 

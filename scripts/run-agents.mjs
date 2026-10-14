@@ -6,20 +6,15 @@ import {execFileSync, spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {interleave, loadCodebase, projectRoot, readJson, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {copyCodebase, interleave, loadCodebase, loadTasks, maxOutputBytes, option, readJson, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
-const option = (name, fallback) => {
-	const index = argv.indexOf(`--${name}`);
-	return index === -1 ? fallback : argv[index + 1];
-};
-
-const config = readJson(path.join(projectRoot, 'config', 'tasks.json'));
-const runsPerCell = Number(option('runs', 10));
-const taskIds = option('tasks', config.tasks.map(task => task.id).join(',')).split(',');
-const selectedVersions = option('versions', versions.join(',')).split(',');
-const parallel = Number(option('parallel', 2));
-const model = option('model', config.agent.model);
+const config = loadTasks();
+const runsPerCell = Number(option(argv, 'runs', 10));
+const taskIds = option(argv, 'tasks', config.tasks.map(task => task.id).join(',')).split(',');
+const selectedVersions = option(argv, 'versions', versions.join(',')).split(',');
+const parallel = Number(option(argv, 'parallel', 2));
+const model = option(argv, 'model', config.agent.model);
 const runsDir = path.join(workDir, 'runs');
 const keyFile = path.join(runsDir, 'key.json');
 fs.mkdirSync(runsDir, {recursive: true});
@@ -30,9 +25,7 @@ const key = fs.existsSync(keyFile) ? readJson(keyFile) : {};
 const copyName = path.basename(loadCodebase().repository, '.git');
 const makeCopy = (version, runId) => {
 	const directory = path.join(runsDir, runId, copyName);
-	fs.mkdirSync(path.dirname(directory), {recursive: true});
-	fs.cpSync(versionDir(version), directory, {recursive: true, filter: from => !/[/\\](?:node_modules|\.git)$/.test(from)});
-	fs.symlinkSync(path.join(workDir, 'deps', 'node_modules'), path.join(directory, 'node_modules'), 'dir');
+	copyCodebase(versionDir(version), directory);
 	const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
 	git('init', '-q');
 	git('add', '-A');
@@ -44,7 +37,7 @@ const makeCopy = (version, runId) => {
 // committed it, or wrote a new file. Staging first brings new files into the diff.
 const diffSinceSnapshot = (directory, snapshot) => {
 	execFileSync('git', ['add', '-A'], {cwd: directory, stdio: 'ignore'});
-	return execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color', snapshot], {cwd: directory, encoding: 'utf8', maxBuffer: 1 << 28});
+	return execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color', snapshot], {cwd: directory, encoding: 'utf8', maxBuffer: maxOutputBytes});
 };
 
 const runAgent = (task, directory, logFile) => new Promise(resolve => {

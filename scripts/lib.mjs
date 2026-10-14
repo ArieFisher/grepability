@@ -4,14 +4,15 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import {key} from './helpers.mjs';
 
 export * from './helpers.mjs';
 
 export const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 export const workDir = path.join(projectRoot, 'work');
 // The two versions of the codebase: the published codebase and the proposed codebase. Each lives in work/<version>.
-export const versions = ['published', 'proposed'];
+export const publishedVersion = 'published';
+export const proposedVersion = 'proposed';
+export const versions = [publishedVersion, proposedVersion];
 export const versionDir = version => path.join(workDir, version);
 export const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 export const writeJson = (file, data) => {
@@ -20,6 +21,19 @@ export const writeJson = (file, data) => {
 };
 
 export const loadConcepts = () => readJson(path.join(projectRoot, 'config', 'concepts.json'));
+export const loadTasks = () => readJson(path.join(projectRoot, 'config', 'tasks.json'));
+
+// Cap on the output a child process may print to a script: 256 MiB, far above the diff or test
+// output of the Ky codebase. A child that prints more fails with an error.
+export const maxOutputBytes = 1 << 28;
+
+// Writes a version's files to a new directory without node_modules and .git, and links node_modules
+// to the dependencies that every version and run copy shares (work/deps, installed by setup.sh).
+export const copyCodebase = (source, destination) => {
+	fs.mkdirSync(path.dirname(destination), {recursive: true});
+	fs.cpSync(source, destination, {recursive: true, filter: from => !/[/\\](?:node_modules|\.git)$/.test(from)});
+	fs.symlinkSync(path.join(workDir, 'deps', 'node_modules'), path.join(destination, 'node_modules'), 'dir');
+};
 
 // The codebase: which repository and commit the experiment runs on, which files form the corpus,
 // and how to type-check and test it. Every field is required, so a missing one fails here rather
@@ -160,18 +174,24 @@ export const commentLines = root => {
 	return result;
 };
 
-// Path of the hidden test inside a run copy. The name is fixed so scoring can pick its results out of the test run.
+// The hidden test's file name inside a run copy. The name is fixed so scoring can pick its results out of the test run.
+const hiddenTestName = 'hidden-acceptance';
+
 export const hiddenTestPath = root => {
 	const {directory, extension} = loadCodebase().tests;
-	return path.join(root, directory, `hidden-acceptance${extension}`);
+	return path.join(root, directory, `${hiddenTestName}${extension}`);
 };
 
-export const isHiddenTest = title => title.startsWith('hidden-acceptance');
+export const isHiddenTest = title => title.startsWith(hiddenTestName);
+
+// How often a differing test reruns. Three reruns in one directory show whether the test is steady
+// (all agree) or flaky (they differ), at the cost of three test-file runs per differing test.
+export const rerunCount = 3;
 
 // Reruns one test a few times by its TAP title; returns how many runs passed. The codebase's rerun
 // command is a template: {file} is the test file the title starts with, {name} the rest of the title.
 // A `*` in the name is escaped so a runner that matches names as globs takes it literally.
-export const rerunTest = (root, title, times = 3) => {
+export const rerunTest = (root, title, times = rerunCount) => {
 	const {tests} = loadCodebase();
 	const [file, ...nameParts] = title.split(tests.titleSeparator);
 	const name = nameParts.join(tests.titleSeparator).replaceAll('*', String.raw`\*`);
@@ -204,10 +224,10 @@ export const compareTests = (resultA, resultB) => {
 
 		const passesA = rerunTest(resultA.directory, name);
 		const passesB = rerunTest(resultB.directory, name);
-		if ((passesA > 0 && passesA < 3) || (passesB > 0 && passesB < 3) || (passesA > 0) === (passesB > 0)) {
+		if ((passesA > 0 && passesA < rerunCount) || (passesB > 0 && passesB < rerunCount) || (passesA > 0) === (passesB > 0)) {
 			flaky.push(name);
 		} else {
-			differences.push({name, a: passesA === 3, b: passesB === 3});
+			differences.push({name, a: passesA === rerunCount, b: passesB === rerunCount});
 		}
 	}
 

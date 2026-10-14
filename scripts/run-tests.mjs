@@ -4,7 +4,7 @@
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {loadCodebase, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {loadCodebase, maxOutputBytes, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const [target, outputArgument] = process.argv.slice(2);
 const root = versions.includes(target) ? versionDir(target) : path.resolve(target);
@@ -12,7 +12,7 @@ const output = outputArgument ? path.resolve(outputArgument) : path.join(workDir
 const codebase = loadCodebase();
 
 const run = ([command, ...args]) => {
-	const result = spawnSync(command, args, {cwd: root, encoding: 'utf8', maxBuffer: 1 << 28});
+	const result = spawnSync(command, args, {cwd: root, encoding: 'utf8', maxBuffer: maxOutputBytes});
 	return {ok: result.status === 0, output: (result.stdout ?? '') + (result.stderr ?? '')};
 };
 

@@ -7,23 +7,20 @@
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fromCsv, loadConcepts, projectRoot, toCsv, versionDir} from './lib.mjs';
+import {fromCsv, loadConcepts, loadTasks, option, projectRoot, publishedVersion, toCsv, versionDir} from './lib.mjs';
 
 const argv = process.argv.slice(2);
-const option = (name, fallback) => {
-	const index = argv.indexOf(`--${name}`);
-	return index === -1 ? fallback : argv[index + 1];
-};
-
 const name = argv[0];
 if (!name || name.startsWith('--')) {
-	throw new Error('Usage: node ai-review.mjs <reviewer-name> [--model sonnet] [--chunk 120] [--parallel 4]');
+	throw new Error('Usage: node ai-review.mjs <reviewer-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]');
 }
 
-const model = option('model', 'sonnet');
-const chunkSize = Number(option('chunk', 120));
-const parallel = Number(option('parallel', 4));
-const contextLines = Number(option('context', 3));
+// The reviewer runs the same command and model as the agent, so one place names them.
+const {agent} = loadTasks();
+const model = option(argv, 'model', agent.model);
+const chunkSize = Number(option(argv, 'chunk', 120));
+const parallel = Number(option(argv, 'parallel', 4));
+const contextLines = Number(option(argv, 'context', 3));
 const {concepts} = loadConcepts();
 const rows = fromCsv(fs.readFileSync(path.join(projectRoot, 'truth', 'review-sheet.csv'), 'utf8'));
 const conceptText = concepts.map(concept => `- ${concept.id}: ${concept.name}. ${concept.definition}`).join('\n');
@@ -32,7 +29,7 @@ const conceptText = concepts.map(concept => `- ${concept.id}: ${concept.name}. $
 const sourceCache = new Map();
 const sourceLines = file => {
 	if (!sourceCache.has(file)) {
-		sourceCache.set(file, fs.readFileSync(path.join(versionDir('published'), file), 'utf8').split('\n'));
+		sourceCache.set(file, fs.readFileSync(path.join(versionDir(publishedVersion), file), 'utf8').split('\n'));
 	}
 
 	return sourceCache.get(file);
@@ -64,7 +61,7 @@ ${chunk.map(item => withContext(item)).join('\n\n')}
 Reply with only a JSON object mapping item numbers to arrays of concept ids, listing only items whose marked line refers to at least one concept. Example: {"12": ["retry-count"], "15": ["retry-delay", "jitter"]}`;
 
 const ask = text => new Promise((resolve, reject) => {
-	const child = spawn('claude', ['-p', '--model', model, '--tools', '', '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config'], {stdio: ['pipe', 'pipe', 'pipe']});
+	const child = spawn(agent.command, ['-p', '--model', model, '--tools', '', '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config'], {stdio: ['pipe', 'pipe', 'pipe']});
 	let stdout = '';
 	let stderr = '';
 	child.stdout.on('data', data => {
@@ -75,7 +72,7 @@ const ask = text => new Promise((resolve, reject) => {
 	});
 	child.on('close', code => {
 		if (code !== 0) {
-			reject(new Error(`claude exited ${code}: ${stderr.slice(0, 500)}`));
+			reject(new Error(`${agent.command} exited ${code}: ${stderr.slice(0, 500)}`));
 			return;
 		}
 

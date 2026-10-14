@@ -6,7 +6,7 @@
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {key, loadConcepts, loadCodebase, projectRoot, readJson, toCsv, versionDir, versions, writeJson} from './lib.mjs';
+import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, splitKey, toCsv, versionDir, versions, writeJson} from './lib.mjs';
 
 const {concepts} = loadConcepts();
 const {corpus} = loadCodebase();
@@ -32,8 +32,8 @@ const search = (root, pattern) => {
 };
 
 const lineText = (root, rowKey) => {
-	const [file, line] = rowKey.split(':');
-	return fs.readFileSync(path.join(root, file), 'utf8').split('\n')[Number(line) - 1].trim();
+	const {file, line} = splitKey(rowKey);
+	return fs.readFileSync(path.join(root, file), 'utf8').split('\n')[line - 1].trim();
 };
 
 const results = [];
@@ -57,7 +57,7 @@ for (const version of present) {
 			termDistinctiveness: hits.size === 0 ? null : found.length / hits.size,
 		});
 		for (const line of missed) {
-			const [file, number] = line.split(':');
+			const {file, line: number} = splitKey(line);
 			misses.push([concept.id, file, number, truth.concepts[concept.id].names.includes(line) ? 'name' : 'text', lineText(root, line)]);
 		}
 	}
@@ -67,7 +67,6 @@ for (const version of present) {
 
 writeJson(path.join(resultsDir, 'search-score.json'), {provisionalTruth: truth.provisional, results});
 
-const percent = value => value === null ? 'n/a' : `${(value * 100).toFixed(0)}%`;
 const rows = concepts.map(concept => {
 	const cells = present.flatMap(version => {
 		const result = results.find(item => item.version === version && item.concept === concept.id);

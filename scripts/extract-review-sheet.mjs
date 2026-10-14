@@ -4,12 +4,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import {commentLines, corpusFiles, projectRoot, toCsv, versionDir} from './lib.mjs';
+import {commentLines, corpusFiles, key, projectRoot, publishedVersion, toCsv, versionDir} from './lib.mjs';
 
-const root = versionDir('published');
+const root = versionDir(publishedVersion);
 const rows = new Map();
 for (const {file, line, text} of commentLines(root)) {
-	rows.set(`${file}:${line}`, {file, line, kind: 'comment', text});
+	rows.set(key(file, line), {file, line, kind: 'comment', text});
 }
 
 for (const file of corpusFiles(root)) {
@@ -21,7 +21,7 @@ for (const file of corpusFiles(root)) {
 			const first = sf.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 			const last = sf.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
 			for (let line = first; line <= last; line++) {
-				const id = `${file}:${line}`;
+				const id = key(file, line);
 				const isImport = ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent);
 				if (!rows.has(id) && !isImport) {
 					rows.set(id, {file, line, kind: 'string', text: textLines[line - 1].trim()});

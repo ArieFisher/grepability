@@ -1,7 +1,65 @@
-// Unit tests for the pure helpers in lib.mjs. Run: node --test scripts/
+// Unit tests for the helpers in helpers.mjs and lib.mjs. Run: node --test scripts/
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
-import {changedOriginalLines, fisherExact, fromCsv, interleave, listedLines, shuffle, toCsv, wilson} from './helpers.mjs';
+import {changedOriginalLines, fisherExact, fromCsv, interleave, key, listedLines, option, percent, shuffle, splitKey, toCsv, wilson} from './helpers.mjs';
+import {copyCodebase, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
+
+test('option reads the value after a flag and falls back when the flag is absent', () => {
+	const argv = ['name', '--chunk', '60', '--model', 'sonnet'];
+	assert.equal(option(argv, 'chunk', 120), '60');
+	assert.equal(option(argv, 'model', 'opus'), 'sonnet');
+	assert.equal(option(argv, 'parallel', 4), 4);
+});
+
+test('percent rounds a share to a whole percent and shows n/a for no value', () => {
+	assert.equal(percent(0.125), '13%');
+	assert.equal(percent(0.994), '99%');
+	assert.equal(percent(1), '100%');
+	assert.equal(percent(null), 'n/a');
+});
+
+test('splitKey inverts key', () => {
+	assert.deepEqual(splitKey(key('source/core/client.ts', 419)), {file: 'source/core/client.ts', line: 419});
+});
+
+test('versions lists the published codebase first and the proposed codebase second', () => {
+	assert.deepEqual(versions, [publishedVersion, proposedVersion]);
+});
+
+test('hiddenTestPath and isHiddenTest agree on the hidden test name', () => {
+	const title = path.basename(hiddenTestPath('/copy'), '.test.ts');
+	assert.ok(isHiddenTest(title), title);
+	assert.ok(!isHiddenTest('retry.test'));
+});
+
+test('loadTasks reads the task configuration', () => {
+	const config = loadTasks();
+	assert.ok(config.tasks.length > 0);
+	assert.equal(typeof config.agent.command, 'string');
+	assert.equal(typeof config.agent.model, 'string');
+});
+
+test('copyCodebase copies files, leaves out node_modules and .git, and links the shared dependencies', () => {
+	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'copy-codebase-'));
+	try {
+		const source = path.join(scratch, 'source');
+		fs.mkdirSync(path.join(source, 'src'), {recursive: true});
+		fs.mkdirSync(path.join(source, 'node_modules', 'pkg'), {recursive: true});
+		fs.mkdirSync(path.join(source, '.git'));
+		fs.writeFileSync(path.join(source, 'src', 'a.ts'), 'export {};\n');
+		const destination = path.join(scratch, 'out', 'copy');
+		copyCodebase(source, destination);
+		assert.equal(fs.readFileSync(path.join(destination, 'src', 'a.ts'), 'utf8'), 'export {};\n');
+		assert.ok(!fs.existsSync(path.join(destination, '.git')));
+		assert.ok(fs.lstatSync(path.join(destination, 'node_modules')).isSymbolicLink());
+		assert.equal(fs.readlinkSync(path.join(destination, 'node_modules')), path.join(workDir, 'deps', 'node_modules'));
+	} finally {
+		fs.rmSync(scratch, {recursive: true, force: true});
+	}
+});
 
 test('listedLines reads single lines, ranges, and bare file names from the last fenced block', () => {
 	const known = ['source/core/client.ts', 'source/types/retry.ts'];

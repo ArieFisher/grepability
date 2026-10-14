@@ -7,9 +7,9 @@
 // Usage: node ground-truth.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {createService, fromCsv, inCorpus, key, lineOf, loadConcepts, loadCodebase, positionOf, projectRoot, relative, toCsv, versionDir, writeJson} from './lib.mjs';
+import {createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, relative, splitKey, toCsv, versionDir, writeJson} from './lib.mjs';
 
-const root = versionDir('published');
+const root = versionDir(publishedVersion);
 const {concepts} = loadConcepts();
 const service = createService(root);
 const truthDir = path.join(projectRoot, 'truth');
@@ -93,9 +93,9 @@ for (const concept of concepts) {
 fs.writeFileSync(path.join(truthDir, 'disagreements.csv'), toCsv([['file', 'line', 'concept', 'tagged_by', 'decision', 'text'], ...disagreements]));
 
 const sortKeys = keys => [...keys].sort((a, b) => {
-	const [fileA, lineA] = a.split(':');
-	const [fileB, lineB] = b.split(':');
-	return fileA.localeCompare(fileB) || Number(lineA) - Number(lineB);
+	const first = splitKey(a);
+	const second = splitKey(b);
+	return first.file.localeCompare(second.file) || first.line - second.line;
 });
 
 const truth = {

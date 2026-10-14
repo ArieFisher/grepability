@@ -6,14 +6,17 @@ config="$here/config/codebase.json"
 field() { node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))[process.argv[2]])" "$config" "$1"; }
 commit="$(field commit)"
 repository="$(field repository)"
-published="$here/work/published"
+# The version name and its folder come from lib.mjs, the one place that holds them.
+lib() { node --input-type=module -e "import * as lib from '$here/scripts/lib.mjs'; console.log(process.argv[1] === 'name' ? lib.publishedVersion : lib.versionDir(lib.publishedVersion))" "$1"; }
+version="$(lib name)"
+published="$(lib directory)"
 
 if [ ! -d "$published/.git" ]; then
 	git clone -q "$repository" "$published"
 fi
 
 git -C "$published" checkout -q "$commit"
-git -C "$published" diff --quiet || { echo "work/published has local changes; reset it first" >&2; exit 1; }
+git -C "$published" diff --quiet || { echo "$published has local changes; reset it first" >&2; exit 1; }
 
 # Dependencies live in work/deps so every copy of the code shares them through a symlink.
 deps="$here/work/deps/node_modules"
@@ -24,4 +27,4 @@ if [ ! -d "$deps" ]; then
 fi
 [ -L "$published/node_modules" ] || ln -s ../deps/node_modules "$published/node_modules"
 
-node "$here/scripts/run-tests.mjs" published
+node "$here/scripts/run-tests.mjs" "$version"

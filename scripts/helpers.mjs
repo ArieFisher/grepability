@@ -3,6 +3,21 @@ import crypto from 'node:crypto';
 
 export const key = (file, line) => `${file}:${line}`;
 
+// The inverse of key: a file:line key back into its file and its line number.
+export const splitKey = fileLine => {
+	const colon = fileLine.lastIndexOf(':');
+	return {file: fileLine.slice(0, colon), line: Number(fileLine.slice(colon + 1))};
+};
+
+// The value after `--name` in an argument list, or the fallback when the flag is absent.
+export const option = (argv, name, fallback) => {
+	const index = argv.indexOf(`--${name}`);
+	return index === -1 ? fallback : argv[index + 1];
+};
+
+// A share between 0 and 1 as a whole percent; n/a when there is no share.
+export const percent = value => value === null ? 'n/a' : `${Math.round(value * 100)}%`;
+
 // Fisher-Yates: a uniform shuffle, returned as a new array.
 export const shuffle = items => {
 	const result = [...items];

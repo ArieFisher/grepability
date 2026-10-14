@@ -7,15 +7,14 @@
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {compareTests, corpusFiles, createService, positionInText, projectRoot, readJson, relative, versionDir, workDir} from './lib.mjs';
+import {compareTests, copyCodebase, corpusFiles, createService, positionInText, projectRoot, proposedVersion, publishedVersion, readJson, relative, versionDir, workDir} from './lib.mjs';
 
-const source = versionDir('published');
-const target = versionDir('proposed');
+const source = versionDir(publishedVersion);
+const target = versionDir(proposedVersion);
 const edits = readJson(path.join(projectRoot, 'config', 'proposed-edits.json'));
 
 fs.rmSync(target, {recursive: true, force: true});
-fs.cpSync(source, target, {recursive: true, filter: from => !/[/\\](?:node_modules|\.git)$/.test(from)});
-fs.symlinkSync('../deps/node_modules', path.join(target, 'node_modules'), 'dir');
+copyCodebase(source, target);
 
 const texts = new Map(corpusFiles(target).map(file => [path.join(target, file), fs.readFileSync(path.join(target, file), 'utf8')]));
 const log = [];
@@ -75,14 +74,14 @@ for (const [file, text] of texts) {
 console.log(log.join('\n'));
 
 // Same type-check and test results as the published codebase?
-execFileSync('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), 'proposed'], {stdio: 'inherit'});
-const baselinePath = path.join(workDir, 'tests-published.json');
+execFileSync('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), proposedVersion], {stdio: 'inherit'});
+const baselinePath = path.join(workDir, `tests-${publishedVersion}.json`);
 if (!fs.existsSync(baselinePath)) {
-	execFileSync('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), 'published'], {stdio: 'inherit'});
+	execFileSync('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), publishedVersion], {stdio: 'inherit'});
 }
 
 const published = readJson(baselinePath);
-const proposed = readJson(path.join(workDir, 'tests-proposed.json'));
+const proposed = readJson(path.join(workDir, `tests-${proposedVersion}.json`));
 if (proposed.typecheck) {
 	const {differences, flaky} = compareTests(published, proposed);
 	if (flaky.length > 0) {
