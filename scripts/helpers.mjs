@@ -325,3 +325,48 @@ export const fromCsv = text => {
 	const [header, ...body] = rows;
 	return body.map(values => Object.fromEntries(header.map((name, i) => [name, values[i] ?? ''])));
 };
+
+// Columns of the blind review sheet. A person fills wrong_edits with yes or no and may add notes.
+export const blindSheetColumns = ['runId', 'task', 'diff', 'final_reply', 'wrong_edits', 'notes'];
+
+// Rows of the blind review sheet. Rows already on the sheet stay as written, so a rescore keeps a person's
+// answers. Runs not yet on the sheet follow in shuffled order, with no version shown.
+export const blindSheetRows = (existing, runs) => {
+	for (const row of existing) {
+		const missing = blindSheetColumns.find(column => !(column in row));
+		if (missing) {
+			throw new Error(`Blind review sheet: a row lacks the ${missing} column.`);
+		}
+	}
+
+	const known = new Set(existing.map(row => row.runId));
+	return [
+		...existing.map(row => blindSheetColumns.map(column => row[column])),
+		...shuffle(runs.filter(run => !known.has(run.runId))).map(run => [run.runId, run.task, run.diff, run.finalReply, '', '']),
+	];
+};
+
+// What a person answered on the blind review sheet: run id to true (yes), false (no), or null (not yet
+// answered). A value other than yes, no, or blank, a repeated run, or a run missing from the sheet throws.
+export const readWrongEdits = (rows, runIds) => {
+	const flags = new Map();
+	for (const row of rows) {
+		const value = row.wrong_edits.trim().toLowerCase();
+		if (!['', 'yes', 'no'].includes(value)) {
+			throw new Error(`Blind review sheet: run ${row.runId} has wrong_edits "${row.wrong_edits}", expected yes, no, or blank.`);
+		}
+
+		if (flags.has(row.runId)) {
+			throw new Error(`Blind review sheet: run ${row.runId} appears twice.`);
+		}
+
+		flags.set(row.runId, value === '' ? null : value === 'yes');
+	}
+
+	const missing = runIds.filter(runId => !flags.has(runId));
+	if (missing.length > 0) {
+		throw new Error(`Blind review sheet: no row for run ${missing.join(', ')}.`);
+	}
+
+	return flags;
+};

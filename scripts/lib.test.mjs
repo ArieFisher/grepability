@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {changedOriginalLines, fisherExact, fromCsv, interleave, key, listedLines, option, percent, regressionCandidates, shuffle, splitKey, toCsv, wilson} from './helpers.mjs';
+import {blindSheetRows, changedOriginalLines, fisherExact, fromCsv, interleave, key, listedLines, option, percent, readWrongEdits, regressionCandidates, shuffle, splitKey, toCsv, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -222,6 +222,33 @@ test('regressionCandidates lists a baseline-passing test that fails or is missin
 
 test('regressionCandidates skips a failing test that the baseline lacks', () => {
 	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}), []);
+});
+
+test('blindSheetRows keeps the rows already on the sheet and appends only runs it lacks', () => {
+	const existing = [{runId: 'r1', task: 't', diff: 'd1', final_reply: 'f1', wrong_edits: 'yes', notes: 'odd'}];
+	const runs = [
+		{runId: 'r1', task: 't', diff: 'd1', finalReply: 'f1'},
+		{runId: 'r2', task: 't', diff: 'd2', finalReply: 'f2'},
+	];
+	assert.deepEqual(blindSheetRows(existing, runs), [
+		['r1', 't', 'd1', 'f1', 'yes', 'odd'],
+		['r2', 't', 'd2', 'f2', '', ''],
+	]);
+});
+
+test('blindSheetRows throws on an existing row that lacks a column', () => {
+	assert.throws(() => blindSheetRows([{runId: 'r1'}], []), /lacks the task column/);
+});
+
+test('readWrongEdits maps yes, no, and blank to true, false, and null', () => {
+	const rows = [{runId: 'a', wrong_edits: 'Yes'}, {runId: 'b', wrong_edits: ' no '}, {runId: 'c', wrong_edits: ''}];
+	assert.deepEqual([...readWrongEdits(rows, ['a', 'b', 'c'])], [['a', true], ['b', false], ['c', null]]);
+});
+
+test('readWrongEdits throws on another value, a repeated run, or a run missing from the sheet', () => {
+	assert.throws(() => readWrongEdits([{runId: 'a', wrong_edits: 'maybe'}], ['a']), /maybe/);
+	assert.throws(() => readWrongEdits([{runId: 'a', wrong_edits: ''}, {runId: 'a', wrong_edits: ''}], ['a']), /twice/);
+	assert.throws(() => readWrongEdits([{runId: 'a', wrong_edits: ''}], ['a', 'b']), /b/);
 });
 
 test('wilson brackets the observed share and clamps to [0, 1]', () => {
