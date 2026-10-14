@@ -5,7 +5,59 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {changedOriginalLines, fisherExact, fromCsv, interleave, key, listedLines, option, percent, shuffle, splitKey, toCsv, wilson} from './helpers.mjs';
-import {copyCodebase, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
+import {commentLinesOfText, copyCodebase, hiddenTestPath, isHiddenTest, loadTasks, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
+
+const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
+
+test('commentLinesOfText finds a comment that follows a template string with a substitution', () => {
+	const source = [
+		'const a = `x ${b} y`; // real comment',
+		'const c = 1;',
+		'const d = `tail`;',
+		'// second comment',
+	].join('\n');
+	assert.deepEqual(commentLineNumbers(source), [1, 4]);
+});
+
+test('commentLinesOfText skips comment-like text in a template tail', () => {
+	const source = [
+		'const a = `${b} // not a comment`;',
+		'const c = 1;',
+	].join('\n');
+	assert.deepEqual(commentLineNumbers(source), []);
+});
+
+test('commentLinesOfText skips comment-like text in a regular expression literal', () => {
+	const source = [
+		'const pattern = /[/*]/;',
+		'const next = 1;',
+		'// real comment',
+		'const end = /x*/;',
+	].join('\n');
+	assert.deepEqual(commentLineNumbers(source), [3]);
+});
+
+test('commentLinesOfText covers every line of a block comment and drops delimiter-only lines', () => {
+	const source = [
+		'/**',
+		' * First words.',
+		' * Second words.',
+		' */',
+		'export const a = 1; /* trailing */',
+	].join('\n');
+	assert.deepEqual(commentLineNumbers(source), [2, 3, 5]);
+});
+
+test('commentLinesOfText finds a comment before a closing bracket and in a JSDoc tag line', () => {
+	const source = [
+		'const a = {',
+		'\tb: 1, // after the comma',
+		'\t// before the bracket',
+		'};',
+		'/** @param x // still the same comment */ const z = 1;',
+	].join('\n');
+	assert.deepEqual(commentLineNumbers(source), [2, 3, 5]);
+});
 
 test('option reads the value after a flag and falls back when the flag is absent', () => {
 	const argv = ['name', '--chunk', '60', '--model', 'sonnet'];

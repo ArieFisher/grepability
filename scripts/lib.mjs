@@ -135,44 +135,56 @@ export const lineOf = (root, file, position) => {
 	return text.slice(0, position).split('\n').length;
 };
 
-// Every comment line (1-based) per file, with its text.
-export const commentLines = root => {
+// Every comment line (1-based) of one file's text, with its text. The parser decides what is a
+// comment, so a template tail or a regular expression that holds `//` or `/*` is not one. Comments
+// are the trivia before and after each token of the tree; JSDoc nodes are skipped because the
+// comment that holds them is already covered.
+export const commentLinesOfText = (file, text) => {
+	const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+	const ranges = new Map();
+	const addRanges = found => {
+		for (const range of found ?? []) {
+			ranges.set(range.pos, range.end);
+		}
+	};
+
+	const visit = node => {
+		addRanges(ts.getLeadingCommentRanges(text, node.getFullStart()));
+		addRanges(ts.getTrailingCommentRanges(text, node.getEnd()));
+		for (const child of node.getChildren(sf)) {
+			if (child.kind < ts.SyntaxKind.FirstJSDocNode || child.kind > ts.SyntaxKind.LastJSDocNode) {
+				visit(child);
+			}
+		}
+	};
+
+	visit(sf);
+	const lines = new Set();
+	for (const [start, end] of ranges) {
+		const first = sf.getLineAndCharacterOfPosition(start).line;
+		const last = sf.getLineAndCharacterOfPosition(end).line;
+		for (let line = first; line <= last; line++) {
+			lines.add(line + 1);
+		}
+	}
+
+	const textLines = text.split('\n');
 	const result = [];
-	for (const file of corpusFiles(root)) {
-		const text = fs.readFileSync(path.join(root, file), 'utf8');
-		const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-		const seen = new Set();
-		const lines = new Set();
-		const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text);
-		for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan()) {
-			if (kind === ts.SyntaxKind.SingleLineCommentTrivia || kind === ts.SyntaxKind.MultiLineCommentTrivia) {
-				const start = scanner.getTokenStart();
-				if (seen.has(start)) {
-					continue;
-				}
-
-				seen.add(start);
-				const first = sf.getLineAndCharacterOfPosition(start).line;
-				const last = sf.getLineAndCharacterOfPosition(scanner.getTokenEnd()).line;
-				for (let line = first; line <= last; line++) {
-					lines.add(line + 1);
-				}
-			}
+	for (const line of [...lines].sort((a, b) => a - b)) {
+		const lineText = textLines[line - 1].trim();
+		if (/^(?:\/\*\*?|\*\/|\*|\/\/)?$/.test(lineText)) {
+			continue; // Comment delimiters and blank comment lines carry no words.
 		}
 
-		const textLines = text.split('\n');
-		for (const line of [...lines].sort((a, b) => a - b)) {
-			const lineText = textLines[line - 1].trim();
-			if (/^(?:\/\*\*?|\*\/|\*|\/\/)?$/.test(lineText)) {
-				continue; // Comment delimiters and blank comment lines carry no words.
-			}
-
-			result.push({file, line, text: lineText});
-		}
+		result.push({file, line, text: lineText});
 	}
 
 	return result;
 };
+
+// Every comment line of every corpus file under root.
+export const commentLines = root => corpusFiles(root)
+	.flatMap(file => commentLinesOfText(file, fs.readFileSync(path.join(root, file), 'utf8')));
 
 // The hidden test's file name inside a run copy. The name is fixed so scoring can pick its results out of the test run.
 const hiddenTestName = 'hidden-acceptance';
