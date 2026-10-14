@@ -61,5 +61,11 @@
 			],
 			"prompt": "This repository is the Ky HTTP client. Change Ky so the retry count passed to the retry.delay function is 0 on the first retry instead of 1. The default delays must not change (300 ms before the first retry, then 600 ms, then 1200 ms, and so on), and hooks and shouldRetry must keep reporting the retry count exactly as they do now. Update the documentation comments and any tests that depend on the old numbering. Run `npx tsc --project tsconfig.json --noEmit` when done."
 		}
-	]
+	],
+	"cloud": {
+		"defaultBranch": "main",
+		"runBranchPrefix": "run-",
+		"replyFile": "REPLY.md",
+		"pendingLimitMinutes": 60
+	}
 }
