@@ -191,6 +191,49 @@ export const checkReviewers = (sheetKeys, reviewers, conceptIds) => {
 	}
 };
 
+// Reads the adjudication rows: each decided row maps file:line|concept to yes or no, and every decided
+// row records who decided it, a person or an AI stand-in. A blank decision leaves the row unresolved.
+// A decision without an adjudicator, or a decision other than yes or no, throws.
+export const readAdjudication = rows => {
+	const decisions = new Map();
+	const adjudicators = new Set();
+	for (const row of rows) {
+		const decision = row.decision.trim().toLowerCase();
+		if (decision === '') {
+			continue;
+		}
+
+		const rowKey = `${key(row.file, row.line)}|${row.concept}`;
+		if (decision !== 'yes' && decision !== 'no') {
+			throw new Error(`Adjudication of ${rowKey} reads ${decision}; write yes or no.`);
+		}
+
+		const adjudicator = (row.adjudicator ?? '').trim();
+		if (adjudicator === '') {
+			throw new Error(`Adjudication of ${rowKey} has a decision and no adjudicator; write who decided it.`);
+		}
+
+		decisions.set(rowKey, decision);
+		adjudicators.add(adjudicator);
+	}
+
+	return {decisions, adjudicators: [...adjudicators].sort()};
+};
+
+// The sentence each result file prints about its ground truth: final or provisional, and who adjudicated.
+// A ground truth built before adjudicators were recorded throws, so the script rebuilds it.
+export const truthStatement = ({provisional, unresolvedDisagreements, adjudicators}) => {
+	if (!Array.isArray(adjudicators)) {
+		throw new Error('The ground truth lists no adjudicators: run scripts/ground-truth.mjs.');
+	}
+
+	const state = provisional ? `Ground truth is provisional: ${unresolvedDisagreements} reviewer disagreements are unresolved.` : 'Ground truth is final.';
+	const decidedBy = adjudicators.length === 0
+		? 'No disagreement needed adjudication.'
+		: `${adjudicators.length === 1 ? 'Adjudicator' : 'Adjudicators'}: ${adjudicators.join(', ')}.`;
+	return `${state} ${decidedBy}`;
+};
+
 // A share between 0 and 1 as a whole percent; n/a when there is no share.
 export const percent = value => value === null ? 'n/a' : `${Math.round(value * 100)}%`;
 

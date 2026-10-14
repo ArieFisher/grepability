@@ -2,12 +2,13 @@
 //   Names in code: the type checker's references for each seed symbol in config/concepts.json.
 //   Comments and strings: lines the reviewers tagged (truth/reviewer-*.csv). Lines all reviewers agree on
 //   count; disagreements go to truth/disagreements.csv. Duplicate that file as truth/adjudication.csv and set
-//   `decision` to yes or no on each row; adjudicated rows then count too. Without adjudication the
+//   `decision` to yes or no and `adjudicator` to who decided, a person or an AI stand-in, on each row;
+//   adjudicated rows then count too, and truth.json lists the adjudicators. Without adjudication the
 //   truth is marked provisional.
 // Usage: node ground-truth.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {checkReviewers, createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, relative, runChecked, splitKey, toCsv, versionDir, writeJson} from './lib.mjs';
+import {checkReviewers, createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, relative, runChecked, splitKey, toCsv, versionDir, writeJson} from './lib.mjs';
 
 const root = versionDir(publishedVersion);
 const {concepts} = loadConcepts();
@@ -57,8 +58,8 @@ const reviewers = reviewerFiles.map(file => ({
 const rowKeys = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'), 'utf8')).map(row => key(row.file, row.line));
 checkReviewers(rowKeys, reviewers, new Set(concepts.map(concept => concept.id)));
 const adjudicationFile = path.join(truthDir, 'adjudication.csv');
-const adjudication = new Map(fs.existsSync(adjudicationFile)
-	? fromCsv(fs.readFileSync(adjudicationFile, 'utf8')).map(row => [`${key(row.file, row.line)}|${row.concept}`, row.decision.trim().toLowerCase()])
+const {decisions: adjudication, adjudicators} = readAdjudication(fs.existsSync(adjudicationFile)
+	? fromCsv(fs.readFileSync(adjudicationFile, 'utf8'))
 	: []);
 
 const textLines = new Map(concepts.map(concept => [concept.id, new Set()]));
@@ -84,7 +85,7 @@ for (const concept of concepts) {
 			}
 
 			const {row} = reviewers[0].tags.get(rowKey);
-			disagreements.push([row.file, row.line, concept.id, reviewers.filter((_, i) => votes[i]).map(reviewer => reviewer.name).join(' '), decision, row.text]);
+			disagreements.push([row.file, row.line, concept.id, reviewers.filter((_, i) => votes[i]).map(reviewer => reviewer.name).join(' '), decision, '', row.text]);
 		} else {
 			neither++;
 		}
@@ -103,7 +104,7 @@ for (const concept of concepts) {
 	agreement[concept.id] = {agreedYes: both, disagreed: split, kappa: kappa === null ? null : Number(kappa.toFixed(3))};
 }
 
-fs.writeFileSync(path.join(truthDir, 'disagreements.csv'), toCsv([['file', 'line', 'concept', 'tagged_by', 'decision', 'text'], ...disagreements]));
+fs.writeFileSync(path.join(truthDir, 'disagreements.csv'), toCsv([['file', 'line', 'concept', 'tagged_by', 'decision', 'adjudicator', 'text'], ...disagreements]));
 
 const sortKeys = keys => [...keys].sort((a, b) => {
 	const first = splitKey(a);
@@ -116,6 +117,7 @@ const truth = {
 	reviewers: reviewers.map(reviewer => reviewer.name),
 	provisional: unresolved > 0,
 	unresolvedDisagreements: unresolved,
+	adjudicators,
 	agreement,
 	concepts: Object.fromEntries(concepts.map(concept => {
 		const names = nameLines.get(concept.id);

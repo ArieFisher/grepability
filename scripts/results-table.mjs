@@ -1,12 +1,13 @@
 // Results table: each concept's search score and agent score per version, with the change between versions
 // and an overall row that leaves out the control concept.
-// Reads results/search-score.json (from search-score.mjs) and results/agent-runs.json (from summarize-agents.mjs).
+// Reads truth/truth.json, results/search-score.json (from search-score.mjs), and results/agent-runs.json (from
+// summarize-agents.mjs).
 // Without agent runs the script writes n/a for every agent score and a note above the table.
 // Writes results/results-table.md.
 // Usage: node results-table.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {loadConcepts, loadTasks, percent, projectRoot, readJson, versions} from './lib.mjs';
+import {loadConcepts, loadTasks, percent, projectRoot, readJson, truthStatement, versions} from './lib.mjs';
 import {resultsTable} from './results.mjs';
 
 const resultsDir = path.join(projectRoot, 'results');
@@ -52,7 +53,7 @@ const conceptLine = row => [
 ];
 const overallLine = ['**Overall**', ...scoreCells(table.overall), ...versions.flatMap(() => ['', ''])];
 const notes = [
-	search.provisionalTruth ? 'Ground truth is provisional.' : 'Ground truth is final.',
+	truthStatement(readJson(path.join(projectRoot, 'truth', 'truth.json'))),
 	...(agentRuns.length === 0 ? ['No agent runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.'] : []),
 	...(table.skippedRuns > 0 ? [`${table.skippedRuns} edit runs were scored without the type check, the tests, or the hidden test (--skip-tests), and count as successes when they missed no line.`] : []),
 ];

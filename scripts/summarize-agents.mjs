@@ -6,7 +6,7 @@
 // Usage: node summarize-agents.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {fisherExact, fromCsv, loadTasks, mean, median, percent, projectRoot, proposedVersion, publishedVersion, readJson, readWrongEdits, successScore, toCsv, versions, workDir, writeJson} from './lib.mjs';
+import {fisherExact, fromCsv, loadTasks, mean, median, percent, projectRoot, proposedVersion, publishedVersion, readJson, readWrongEdits, successScore, toCsv, truthStatement, versions, workDir, writeJson} from './lib.mjs';
 
 const config = loadTasks();
 const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
@@ -45,7 +45,7 @@ const runsPerCell = Math.max(...config.tasks.flatMap(task => versions.map(versio
 const lines = [
 	'# Agent runs',
 	'',
-	truth.provisional ? 'Ground truth is provisional.' : 'Ground truth is final.',
+	truthStatement(truth),
 	skipped > 0 ? `${skipped} edit runs were scored on find rate only (--skip-tests): no type check, tests, or hidden test.` : 'Every edit run was type-checked and tested.',
 	unanswered > 0 ? `${unanswered} of ${scored.length} runs have no wrong_edits answer on the blind review sheet.` : 'Every run has a wrong_edits answer on the blind review sheet.',
 	'',

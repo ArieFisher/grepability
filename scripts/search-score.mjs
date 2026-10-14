@@ -5,7 +5,7 @@
 // Usage: node search-score.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, runChecked, splitKey, toCsv, versionDir, versions, writeJson} from './lib.mjs';
+import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, runChecked, splitKey, toCsv, truthStatement, versionDir, versions, writeJson} from './lib.mjs';
 
 const {concepts} = loadConcepts();
 const {corpus} = loadCodebase();
@@ -73,7 +73,7 @@ for (const version of present) {
 }
 
 fs.mkdirSync(resultsDir, {recursive: true});
-writeJson(path.join(resultsDir, 'search-score.json'), {provisionalTruth: truth.provisional, results});
+writeJson(path.join(resultsDir, 'search-score.json'), {provisionalTruth: truth.provisional, adjudicators: truth.adjudicators, results});
 for (const [version, misses] of missesByVersion) {
 	fs.writeFileSync(path.join(resultsDir, `misses-${version}.csv`), toCsv([['concept', 'file', 'line', 'source', 'text'], ...misses]));
 }
@@ -89,7 +89,7 @@ const header = `| Concept | Search | ${present.map(version => `Find rate ${versi
 const markdown = [
 	'# Search score',
 	'',
-	truth.provisional ? `Ground truth is provisional: ${truth.unresolvedDisagreements} reviewer disagreements are unresolved.` : 'Ground truth is final.',
+	truthStatement(truth),
 	...(scope ? ['', scope] : []),
 	'',
 	header,
