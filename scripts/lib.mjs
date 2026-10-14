@@ -55,6 +55,14 @@ export const copyCodebase = (source, destination) => {
 	fs.symlinkSync(path.join(workDir, 'deps', 'node_modules'), path.join(destination, 'node_modules'), 'dir');
 };
 
+// The install command must skip the dependencies' own install scripts, which would otherwise run code from
+// every dependency on this machine. A command without the flag throws.
+export const checkInstallCommand = command => {
+	if (!command.includes('--ignore-scripts')) {
+		throw new Error(`The install command ${command.join(' ')} must contain --ignore-scripts, so dependency install scripts never run.`);
+	}
+};
+
 // The codebase: which repository and commit the experiment runs on, which files form the corpus,
 // and how to type-check and test it. Every field is required, so a missing one fails here rather
 // than as an undefined deep inside a script.
@@ -72,6 +80,7 @@ export const loadCodebase = () => {
 		throw new Error(`${codebaseFile} is missing: ${missing.join(', ')}`);
 	}
 
+	checkInstallCommand(codebase.install);
 	codebaseCache = codebase;
 	return codebase;
 };
@@ -100,15 +109,25 @@ export const runChecked = (command, args, options = {}) => {
 	return result;
 };
 
-// Runs the codebase's own compile step in one directory, so its type tests see the declarations of
-// that directory's source. A failed step throws.
-export const compileCodebase = (root, command = loadCodebase().compile) => {
+// Runs one configured command in a directory, as an argument list so no shell reads it. A command that
+// cannot start or exits non-zero throws.
+const runStep = (label, command, root) => {
 	const [program, ...args] = command;
 	const result = runChecked(program, args, {cwd: root});
 	if (result.status !== 0) {
-		throw new Error(`The compile command ${command.join(' ')} exited with status ${result.status} in ${root}:\n${(result.stdout + result.stderr).slice(-2000)}`);
+		throw new Error(`The ${label} command ${command.join(' ')} exited with status ${result.status} in ${root}:\n${(result.stdout + result.stderr).slice(-2000)}`);
 	}
 };
+
+// Installs the codebase's dependencies in one directory with the configured install command.
+export const installCodebase = (root, command = loadCodebase().install) => {
+	checkInstallCommand(command);
+	runStep('install', command, root);
+};
+
+// Runs the codebase's own compile step in one directory, so its type tests see the declarations of
+// that directory's source. A failed step throws.
+export const compileCodebase = (root, command = loadCodebase().compile) => runStep('compile', command, root);
 
 // Language service over the project's own tsconfig.json, so references match what the compiler sees.
 // Files can be overridden in memory (used when applying renames). A tsconfig that is missing or has

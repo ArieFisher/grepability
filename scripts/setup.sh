@@ -3,11 +3,9 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 config="$here/config/codebase.json"
-# A field of the codebase configuration; a command (a list of words) prints as one line.
-field() { node -e "const v=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))[process.argv[2]];console.log(Array.isArray(v)?v.join(' '):v)" "$config" "$1"; }
+field() { node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))[process.argv[2]])" "$config" "$1"; }
 commit="$(field commit)"
 repository="$(field repository)"
-read -ra install <<<"$(field install)"
 # The version name and its folder come from lib.mjs, the one place that holds them.
 lib() { node --input-type=module -e "import * as lib from '$here/scripts/lib.mjs'; console.log(process.argv[1] === 'name' ? lib.publishedVersion : lib.versionDir(lib.publishedVersion))" "$1"; }
 version="$(lib name)"
@@ -27,7 +25,7 @@ git -C "$published" diff --quiet || { echo "$published has local changes; reset 
 # Dependencies live in work/deps so every version and run copy shares them through a symlink.
 deps="$here/work/deps/node_modules"
 if [ ! -d "$deps" ]; then
-	(cd "$published" && "${install[@]}" >/dev/null)
+	node "$here/scripts/install-codebase.mjs" "$published" >/dev/null
 	mkdir -p "$here/work/deps"
 	mv "$published/node_modules" "$deps"
 fi

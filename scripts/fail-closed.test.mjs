@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {acceptTags, checkReviewers, integerOption, parseTap, summarizeTranscript} from './helpers.mjs';
-import {compileCodebase, createService, loadCodebase, rerunTest, runChecked} from './lib.mjs';
+import {checkInstallCommand, compileCodebase, createService, installCodebase, loadCodebase, rerunTest, runChecked} from './lib.mjs';
 
 test('the codebase configuration holds a compile command', () => {
 	const {compile} = loadCodebase();
@@ -15,6 +15,32 @@ test('the codebase configuration holds a compile command', () => {
 test('the codebase configuration holds an install command', () => {
 	const {install} = loadCodebase();
 	assert.ok(Array.isArray(install) && install.length > 0 && install.every(part => typeof part === 'string'));
+});
+
+test('checkInstallCommand accepts a command that skips install scripts and throws on one that runs them', () => {
+	assert.doesNotThrow(() => checkInstallCommand(['npm', 'install', '--ignore-scripts']));
+	assert.throws(() => checkInstallCommand(['npm', 'install']), /--ignore-scripts/);
+	assert.throws(() => checkInstallCommand([]), /--ignore-scripts/);
+});
+
+test('installCodebase runs the install command in the directory it is given', () => {
+	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'install-'));
+	try {
+		installCodebase(scratch, ['node', '-e', "require('node:fs').writeFileSync('installed.txt', 'yes')", '--', '--ignore-scripts']);
+		assert.equal(fs.readFileSync(path.join(scratch, 'installed.txt'), 'utf8'), 'yes');
+	} finally {
+		fs.rmSync(scratch, {recursive: true, force: true});
+	}
+});
+
+test('installCodebase throws when the command fails, cannot start, or lacks --ignore-scripts', () => {
+	assert.throws(() => installCodebase(os.tmpdir(), ['node', '-e', 'process.exit(3)', '--', '--ignore-scripts']), /install command.*exited with status 3/s);
+	assert.throws(() => installCodebase(os.tmpdir(), ['no-such-command-for-this-test', '--ignore-scripts']), /no-such-command-for-this-test/);
+	assert.throws(() => installCodebase(os.tmpdir(), ['node', '-e', '0']), /--ignore-scripts/);
+});
+
+test('the codebase configuration skips install scripts', () => {
+	assert.doesNotThrow(() => checkInstallCommand(loadCodebase().install));
 });
 
 test('compileCodebase runs the compile command in the directory it is given', () => {
