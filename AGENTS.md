@@ -153,6 +153,8 @@ Branch prefixes, each with a short kebab-case label: `feature/` new behavior, `f
 
 Stash before switching branches with a dirty tree.
 
+Before creating a branch, fetch from `origin`. When local `main` is behind `origin/main`, pull it first, then branch from local `main`, so local `main` never falls behind the branches made from it.
+
 ### Review findings
 
 Route every review finding to exactly one place. Never leave an actionable item as a non-blocking note for me to remember and re-instruct.
