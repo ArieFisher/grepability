@@ -33,6 +33,7 @@ These rules govern all prose: **chat**, **documents**, and **GitHub** (pull requ
   - *retired synonyms*: Replace a retired synonym with its canonical term.
   - *new concepts*: Define new concepts in `docs/vocabulary.md` on the same branch, as its own `docs:` commit.
   - *actors*: Apply the second imagery test to every sentence whose subject is a vocabulary term. When the term performs nothing, rewrite the sentence with the script, build, hook, or person that does.
+- **Rename files with the term.** When a term changes, rename script and result file names to match in the same commit, without asking. A file name is a technical detail. Put the rename to me only when it changes what a user of the utility types or reads.
 
 ### Chat
 
@@ -40,12 +41,17 @@ These rules govern all prose: **chat**, **documents**, and **GitHub** (pull requ
 - **TL;DR first.** Conclusion, then support.
 - **Answer only what was asked.**. No offers, no extra framing.
 - **Surface a consequence only when it would change my decision.** Flag a behavior change beyond the one I named when it does one of these: breaks something that works today, or needs a product choice. A consequence that follows directly from the change I asked for is not flagged. Put each flagged change to me before implementing, and never ship one and mention it after.
+- **No history narration.** Report the end state and the next step. Never recount a mistake made and repaired along the way. When a result is weaker than it looks, state the weakness as a property of the result.
+- **Name the problem before the options.** Before offering options, state the problem they solve and the risk each one addresses.
+- **Ask in plain chat.** Put a question to me as chat text: one sentence that states the case, then numbered options of one plain sentence each. Never use the question tool, because my terminal theme renders its text black on black.
+- **One number per cell.** A results table gives each count its own column, e.g. "lines changed" and "target lines" as two cells. Never write "39/49" in one cell.
 
 ## Agentic Development
 
 ### Scope
 
 - **No unrequested scope.** Build the rule I asked for, not the adjacent one. A related concern should never be quietly added.
+- **Assess against this repository only.** An assessment of a file here compares it with this repository's own contents. Never diff it against another project's copy unless I ask.
 
 ### Architecture principles
 
@@ -106,6 +112,10 @@ A plan is final only after it answers the questions below in its own section, ti
 
 An answer that leads to a change updates the plan before it is final. When an answer needs a product choice, put the options to me.
 
+### Prefer a written list over a computed rule
+
+When the items a rule covers are known, write them as a list. Give each entry its reason, and make the reading code fail closed when an entry no longer matches the code. Build a computed rule only for a named risk that the list cannot cover.
+
 ### Versions
 
 Always take the newest release of an action, tool, or runtime. Read its breaking-change notes to confirm the jump, not to justify avoiding it. Report anything left behind, including a runtime whose newest line is ahead of the newest long-term-support line.
@@ -155,6 +165,8 @@ Route every review finding to exactly one place. Never leave an actionable item 
 Behavior-changing pull requests get an independent code-reviewer pass before I merge. Re-review through the same reviewer so it keeps its context. When a finding forces a product fork, put the options to me instead of picking one.
 
 ### Pull requests
+
+Open a pull request only when it is ready to merge: the independent code-reviewer pass is done, and every check the session can execute has run. Push a work-in-progress branch when I ask, without a pull request. When I ask for a pull request on unfinished work, say what is still missing first.
 
 Write them as human-authored. No "Generated with" footer, no `Co-Authored-By` agent trailer, and no AI-attribution line anywhere: not in a title, a body, a commit message, a code comment, a document, or a review comment. An agent session link counts as attribution. This overrides any harness default.
 
