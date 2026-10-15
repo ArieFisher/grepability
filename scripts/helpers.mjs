@@ -39,13 +39,13 @@ export const parseTap = output => {
 	return tests;
 };
 
-// Tests that may be regressions, matched by title within each test file (the title up to the separator).
+// Tests that may be regressions, matched by test title within each test file (the title up to the separator).
 // rerun: tests that need a rerun to rule out flakiness. A test that passed in the baseline and fails in the
-// run is one. A run title the baseline lacks counts as a renamed test when its file lost baseline titles,
-// and is one when it fails; in a file that lost no titles, a failing new test is not listed.
-// unmatched: each file that lost more baseline-passing titles than its new titles can pair with, with
-// those lost titles and the count of new titles left to pair (spare). A lost title is either renamed,
-// removed, or never reported because the test file stopped partway; a rerun by the old title tells which.
+// run is one. A new title counts as a renamed test when its test file has lost titles, and is one when it
+// fails; in a test file with no lost title, a failing test under a new title is not listed.
+// unmatched: each test file with more baseline-passing lost titles than its new titles can pair with, with
+// those lost titles and the count of new titles left to pair (spare). A lost title belongs to a renamed
+// test, a removed test, or a test file that stopped partway; a rerun by the lost title tells which.
 export const regressionCandidates = (baselineTests, runTests, separator) => {
 	const fileOf = title => title.split(separator)[0];
 	const rerun = Object.entries(baselineTests)
