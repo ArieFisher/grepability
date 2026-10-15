@@ -500,14 +500,53 @@ export const mean = values => {
 	return numbers.length === 0 ? null : numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 };
 
-// Successes over a list of runs, as a count, a share, and the Wilson interval. No runs give null.
-export const successScore = runs => {
+// Success of an edit run scored with its tests. A run with a test file that stopped partway gets null, for
+// unknown: the scoring script holds no result for the tests after the stop, and a rescore gives a verdict.
+export const editSuccess = ({typecheck, testRegressions, missed, hiddenTestPassed, testFilesStoppedPartway}) => {
+	if (testFilesStoppedPartway) {
+		return null;
+	}
+
+	return typecheck && testRegressions === 0 && missed === 0 && (hiddenTestPassed ?? true);
+};
+
+// Successes over a list of runs, as a count, a share, and the Wilson interval. A run with unknown success
+// (null) is left out. No runs, or only unknown ones, give null.
+export const successScore = allRuns => {
+	const runs = allRuns.filter(run => run.success !== null);
 	if (runs.length === 0) {
 		return null;
 	}
 
 	const successes = runs.filter(run => run.success).length;
 	return {successes, runs: runs.length, score: successes / runs.length, interval: wilson(successes, runs.length)};
+};
+
+// A number with a fixed count of decimals for a summary table. Null gives n/a.
+export const format = (value, digits = 2) => value === null ? 'n/a' : value.toFixed(digits);
+
+// One row of the agent summary table, for the runs of one task in one version; pCell is the text of the p column.
+// Runs counts every run, as the averaged columns do. The success count and its interval cover the runs with
+// known success, and show n/a when every run has unknown success.
+export const agentSummaryRow = (task, version, runs, pCell) => {
+	const score = successScore(runs);
+	const answered = runs.filter(run => run.wrongEdits !== null);
+	const flagged = answered.filter(run => run.wrongEdits).length;
+	const cells = [
+		task,
+		version,
+		runs.length,
+		score ? `${score.successes}/${score.runs}` : 'n/a',
+		score ? `${percent(score.interval.low)} to ${percent(score.interval.high)}` : 'n/a',
+		pCell,
+		`${flagged}/${answered.length}`,
+		format(mean(runs.map(run => run.findRate))),
+		format(mean(runs.map(run => run.missed)), 1),
+		format(median(runs.map(run => run.wallSeconds)), 0),
+		format(mean(runs.map(run => run.costUsd))),
+		format(mean(runs.map(run => run.searchCalls)), 1),
+	];
+	return `| ${cells.join(' | ')} |`;
 };
 
 // Two-sided Fisher exact test on a 2x2 table [[a, b], [c, d]]: sums the probabilities of every
