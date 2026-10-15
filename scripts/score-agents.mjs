@@ -10,7 +10,7 @@
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
-import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, readJson, regressionCandidates, removedTests, rerunTest, runChecked, runMeasures, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedRegressions, rerunTest, runChecked, runMeasures, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -122,18 +122,24 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			}
 
 			const tests = readJson(output);
-			// A regression is a candidate that fails every rerun, or a removed test. A test that passes a rerun is
-			// flaky. regressionCandidates matches a renamed test to its new title, so a rename alone is no regression.
-			// A lost title gets one rerun: a removed or renamed title cannot pass it, and a test whose file stopped
-			// partway does, so one rerun per lost title bounds the cost of a file that stops early.
-			const {rerun, unmatched} = regressionCandidates(baseline[version].tests, tests.tests, loadCodebase().tests.titleSeparator);
+			// A regression is a test that fails every rerun, a renamed test that fails every rerun under its new
+			// title, or a removed test. A test that passes a rerun is flaky. judgeLostTitles gives each lost title
+			// one rerun, up to its failure limit per test file, and reports a test file that stopped partway.
+			const {rerun, files} = regressionCandidates(baseline[version].tests, tests.tests, loadCodebase().tests.titleSeparator);
+			const stoppedPartway = [];
 			const failing = [
 				...rerun.filter(name => rerunTest(run.directory, name) === 0),
-				...unmatched.flatMap(({file, titles, spare}) => {
-					const failed = titles.filter(title => rerunTest(run.directory, title, 1) === 0).length;
-					return Array.from({length: removedTests(failed, spare)}, () => `${file} (test removed)`);
+				...files.flatMap(({file, lostTitles, pairs, failingNewTitles}) => {
+					const renamed = renamedRegressions(failingNewTitles.filter(title => rerunTest(run.directory, title) === 0), pairs);
+					const judged = judgeLostTitles(lostTitles, pairs, title => rerunTest(run.directory, title, 1) === 1);
+					if (judged.stoppedPartway) {
+						stoppedPartway.push(file);
+					}
+
+					return [...renamed, ...Array.from({length: judged.removed}, () => `${file} (test removed)`)];
 				}),
 			];
+			row.testFilesStoppedPartway = stoppedPartway.join('; ');
 			row.typecheck = tests.typecheck;
 			row.testRegressions = failing.length;
 			row.regressedTests = failing.join('; ');

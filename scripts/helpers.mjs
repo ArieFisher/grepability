@@ -39,39 +39,64 @@ export const parseTap = output => {
 	return tests;
 };
 
-// Tests that may be regressions, matched by test title within each test file (the title up to the separator).
-// rerun: tests that need a rerun to rule out flakiness. A test that passed in the baseline and fails in the
-// run is one. A new title counts as a renamed test when its test file has lost titles, and is one when it
-// fails; in a test file with no lost title, a failing test under a new title is not listed.
-// unmatched: each test file with more baseline-passing lost titles than its new titles can pair with, with
-// those lost titles and the count of new titles left to pair (spare). A lost title belongs to a renamed
-// test, a removed test, or a test file that stopped partway; a rerun by the lost title tells which.
+// Tests that may be regressions, matched by test title within each test file (the title up to the first separator).
+// rerun: tests that passed in the baseline and fail in the run; each needs a rerun to rule out flakiness.
+// files: each test file with lost titles that passed in the baseline. pairs is the number of those lost titles
+// a new title in the same test file can stand for: a renamed test. A new title pairs with a lost title that
+// passed in the baseline before one that failed, so a rename alone never counts. failingNewTitles are the
+// failing tests under a new title; renamedRegressions counts them up to pairs. Which new title renames which
+// lost title is unknown, so the pairing works on counts. A test file whose only lost titles failed in the
+// baseline is not listed, so a renamed test that failed in the baseline never counts.
 export const regressionCandidates = (baselineTests, runTests, separator) => {
 	const fileOf = title => title.split(separator)[0];
 	const rerun = Object.entries(baselineTests)
 		.filter(([title, passed]) => passed && Object.hasOwn(runTests, title) && runTests[title] !== true)
 		.map(([title]) => title);
-	const lost = Object.entries(baselineTests).filter(([title]) => !Object.hasOwn(runTests, title));
+	const lostPassing = Object.entries(baselineTests)
+		.filter(([title, passed]) => passed && !Object.hasOwn(runTests, title))
+		.map(([title]) => title);
 	const gained = Object.keys(runTests).filter(title => !Object.hasOwn(baselineTests, title));
-	const unmatched = [];
-	for (const file of new Set(lost.map(([title]) => fileOf(title)))) {
-		const lostHere = lost.filter(([title]) => fileOf(title) === file);
+	const files = [...new Set(lostPassing.map(fileOf))].map(file => {
+		const lostTitles = lostPassing.filter(title => fileOf(title) === file);
 		const gainedHere = gained.filter(title => fileOf(title) === file);
-		const titles = lostHere.filter(([, passed]) => passed).map(([title]) => title);
-		// A new title pairs first with a lost title that failed in the baseline; the rest can pair with passing ones.
-		const spare = Math.max(0, gainedHere.length - (lostHere.length - titles.length));
-		rerun.push(...gainedHere.filter(title => runTests[title] !== true));
-		if (titles.length > spare) {
-			unmatched.push({file, titles, spare});
+		return {
+			file,
+			lostTitles,
+			pairs: Math.min(lostTitles.length, gainedHere.length),
+			failingNewTitles: gainedHere.filter(title => runTests[title] !== true),
+		};
+	});
+	return {rerun, files};
+};
+
+// Renamed tests that count as regressions: the failing new titles that failed every rerun, up to the number
+// of pairs in their test file.
+export const renamedRegressions = (confirmedFailingNewTitles, pairs) => confirmedFailingNewTitles.slice(0, pairs);
+
+// Failed reruns after the pairs, before the scoring script stops rerunning lost titles of one test file. A
+// renamed test's old title fails its rerun at once, because the title is gone; a test that still exists but
+// hangs takes the 60-second timeout of the rerun command. Five failures beyond the pairs show a test file
+// whose tests are gone or broken, and cap the slow case at about five minutes per test file.
+export const lostTitleFailureLimit = 5;
+
+// Judges the lost titles of one test file, rerunning each once in order with `passesRerun(title)`. A pass
+// means the test still exists and its test file stopped partway in the run, so nothing counts as removed.
+// When pairs plus lostTitleFailureLimit reruns have failed, or every lost title has failed, the lost titles
+// beyond the pairs count as removed tests.
+export const judgeLostTitles = (lostTitles, pairs, passesRerun) => {
+	if (lostTitles.length <= pairs) {
+		return {removed: 0, stoppedPartway: false, reruns: 0};
+	}
+
+	const limit = Math.min(lostTitles.length, pairs + lostTitleFailureLimit);
+	for (let reruns = 1; reruns <= limit; reruns++) {
+		if (passesRerun(lostTitles[reruns - 1])) {
+			return {removed: 0, stoppedPartway: true, reruns};
 		}
 	}
 
-	return {rerun, unmatched};
+	return {removed: lostTitles.length - pairs, stoppedPartway: false, reruns: limit};
 };
-
-// Removed tests in one unmatched file: lost titles that failed their rerun, beyond the new titles left to
-// pair with them. A lost title that passes its rerun still exists; its file stopped partway in the run.
-export const removedTests = (failedTitles, spare) => Math.max(0, failedTitles - spare);
 
 // The first word of every sub-command in a shell command line. A sub-command ends at &&, ||, ;, |, &, or a
 // line break outside quotes; the & of a redirection such as 2>&1 does not end one. A leading NAME=value
