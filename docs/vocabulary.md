@@ -20,7 +20,7 @@ One term per concept, used in every document, comment, test name, commit message
 | compile | The codebase's own step that turns its source into the compiled code and declarations that its type tests import. Each version compiles from its own source, so the type check of a version reads that version's declarations. | build step, distribution build, dist |
 | search term            | The one regular expression that stands for a concept in a search. The search-score script searches each version with it for the search score. The proposed codebase build rewords the concept so that the search term matches every line of the concept.                                                                       | search pattern, grep pattern, query, keyword           |
 | forms                  | The wider regular expression that matches every wording of a concept in the published codebase. The scoring script uses it to pick the lines a rename task had to change.                                                                                                                                                      | variants, aliases, spellings                           |
-| name | An identifier in the code: a variable, parameter, field, function, class, or type. The type checker resolves each use of a name to the declaration it refers to, so names are the part of the corpus the type checker covers. Comments and strings are text, not names. | identifier, symbol name, variable name |
+| name | An identifier in the code: a variable, parameter, property, function, or type. The type checker resolves each use of a name to the declaration it refers to, so names are the part of the corpus the type checker covers. Comments and strings are text, not names. | identifier, symbol name, variable name |
 | seed                   | A name in the published codebase's code, written as file, line, and name. The type checker starts from it to find the concept's references.                                                                                                                                                                                    | anchor, root symbol, starting point                    |
 | control concept        | A concept whose wording is already consistent, so the proposed codebase build leaves it unchanged. It shows what both scores give when there is nothing to fix.                                                                                                                                                                | baseline concept, placebo                              |
 | version                | One of the two codebases the experiment compares: the published codebase or the proposed codebase. Both scores cover each version.                                                                                                                                                                                             | arm, variant, condition, treatment, branch             |
@@ -42,6 +42,22 @@ One term per concept, used in every document, comment, test name, commit message
 | adjudication | A yes or no on each disagreement, from a person or an AI stand-in. Until every disagreement has one, the ground truth is provisional. | resolution, arbitration, tie-break |
 | adjudicator | The person or AI stand-in who gave an adjudication. The adjudication file records one per decided row, the ground truth lists them, and every result file prints them. | arbiter, tie-breaker, decider |
 | provisional | The state of a ground truth with at least one disagreement that has no adjudication. Every result file records whether its truth is provisional. | draft, preliminary, incomplete, tentative |
+| line kind | The kind of text a ground truth line holds: one of the kinds in the line kinds table. A text line takes the kind the review sheet records for it. A name line takes the kind of the declaration its name refers to, as the type checker reports it. A line that holds two kinds has both. | line type, line category, token kind |
+
+### Line kinds
+
+The TypeScript kinds column is the machine form of the mapping from a declaration kind to a line kind. A declaration kind the column lacks maps to `other`.
+
+| Kind | Meaning | TypeScript kinds | Retired |
+|---|---|---|---|
+| comment | A line that holds a comment. | | remark |
+| string | A line that holds a string and no comment. | | text literal |
+| property | A name of a property of an object, a class, or a type, including a class field and an accessor. | property, getter, setter, enum member | attribute |
+| parameter | A name of a function or method parameter. | parameter | |
+| variable | A name of a variable. | var, let, const, local var, using, await using | |
+| function | A name of a function, a method, or a constructor. | function, local function, method, constructor | procedure |
+| type | A name of a type, an interface, a class, an enum, or a type parameter. | type, interface, class, local class, enum, type parameter | type name, class name |
+| other | A name whose declaration kind the TypeScript kinds column lacks. | | misc |
 
 ## Agent runs
 
