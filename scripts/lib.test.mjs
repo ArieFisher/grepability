@@ -343,6 +343,11 @@ test('renamedTitles throws on a file header it cannot read, such as a quoted pat
 	assert.throws(() => renamedTitles(diff, testsConfig), /cannot read the file header/);
 });
 
+test('renamedTitles skips a quoted path outside the test directory', () => {
+	const diff = ['diff --git "a/source/\\303\\251.ts" "b/source/\\303\\251.ts"', '--- "a/source/\\303\\251.ts"', '+++ "b/source/\\303\\251.ts"', '@@ -1 +1 @@', '-const a = 1;', '+const b = 1;', hunk('test/a.ts', ["-test('p', t => {", "+test('q', t => {"])].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['a › q', 'a › p']]));
+});
+
 test('renamedTitles skips a title with an escape other than a quote or a backslash', () => {
 	const diff = hunk('test/retry.ts', ["-test('line\\nbreak', t => {", "+test('line\\nbreaks', t => {"]);
 	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());

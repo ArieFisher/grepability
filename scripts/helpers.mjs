@@ -46,7 +46,7 @@ export const parseTap = output => {
 // match is no rename. `tests` is the tests section of the codebase configuration: its declaration pattern
 // captures the title a test declaration declares. A title holding a template expression is skipped, because the
 // test command prints the expression's value, and so is a title holding an escape other than a quote or a
-// backslash. A file header with a path git quoted throws, because its file cannot be told apart from others.
+// backslash. A file header with a quoted path under the test directory throws, because the script reads no quoted path.
 export const renamedTitles = (diff, tests) => {
 	const declaration = new RegExp(tests.declaration);
 	const testFilePrefix = file => {
@@ -62,11 +62,17 @@ export const renamedTitles = (diff, tests) => {
 		}
 
 		const file = /^[ab]\/(.+)$/.exec(value)?.[1];
-		if (file === undefined) {
+		if (file !== undefined) {
+			return testFilePrefix(file);
+		}
+
+		// Git quotes a path that holds an unusual character. One outside the test directory holds no test.
+		const isTestPath = /^"[ab]\/(.+)"$/.exec(value)?.[1].startsWith(`${tests.directory}/`) ?? true;
+		if (isTestPath) {
 			throw new Error(`renamedTitles cannot read the file header "${line}".`);
 		}
 
-		return testFilePrefix(file);
+		return undefined;
 	};
 
 	const titleOf = (prefix, line) => {
