@@ -41,11 +41,12 @@ export const parseTap = output => {
 };
 
 // Renamed tests read from a run's diff, as a map from new test title to old test title. The diff must have zero
-// context lines, so each hunk holds one block of changed lines. In each hunk of a test file, the test declarations it
+// context lines, so each hunk holds only changed lines. In each hunk of a test file, the test declarations it
 // removes pair in order with the test declarations it adds, when the two counts are equal; a pair whose titles
 // match is no rename. `tests` is the tests section of the codebase configuration: its declaration pattern
 // captures the title a test declaration declares. A title holding a template expression is skipped, because the
-// test command prints the expression's value.
+// test command prints the expression's value, and so is a title holding an escape other than a quote or a
+// backslash. A file header with a path git quoted throws, because its file cannot be told apart from others.
 export const renamedTitles = (diff, tests) => {
 	const declaration = new RegExp(tests.declaration);
 	const testFilePrefix = file => {
@@ -54,9 +55,24 @@ export const renamedTitles = (diff, tests) => {
 		return isTestFile ? relative.slice(0, -tests.extension.length).split('/').join(tests.titleSeparator) : undefined;
 	};
 
+	const headerPrefix = line => {
+		const value = line.slice(4).replace(/\t$/, '');
+		if (value === '/dev/null') {
+			return undefined;
+		}
+
+		const file = /^[ab]\/(.+)$/.exec(value)?.[1];
+		if (file === undefined) {
+			throw new Error(`renamedTitles cannot read the file header "${line}".`);
+		}
+
+		return testFilePrefix(file);
+	};
+
 	const titleOf = (prefix, line) => {
 		const title = declaration.exec(line.slice(1))?.groups.title;
-		return title === undefined || title.includes('${') ? undefined : `${prefix}${tests.titleSeparator}${title.replaceAll(/\\(.)/g, '$1')}`;
+		const isReadable = title !== undefined && !title.includes('${') && !/\\[^'"`\\]/.test(title);
+		return isReadable ? `${prefix}${tests.titleSeparator}${title.replaceAll(/\\(.)/g, '$1')}` : undefined;
 	};
 
 	const renames = new Map();
@@ -77,19 +93,27 @@ export const renamedTitles = (diff, tests) => {
 	let newPrefix;
 	for (let index = 0; index < lines.length; index++) {
 		const line = lines[index];
-		const header = /^(---|\+\+\+) (?:[ab]\/(.+)|\/dev\/null)$/.exec(line);
-		if (header) {
-			const prefix = header[2] === undefined ? undefined : testFilePrefix(header[2]);
-			[oldPrefix, newPrefix] = header[1] === '---' ? [prefix, newPrefix] : [oldPrefix, prefix];
-			continue;
+		if (line.startsWith('diff --git ')) {
+			[oldPrefix, newPrefix] = [undefined, undefined];
+		} else if (line.startsWith('--- ')) {
+			oldPrefix = headerPrefix(line);
+		} else if (line.startsWith('+++ ')) {
+			newPrefix = headerPrefix(line);
 		}
 
 		const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
 		if (hunk) {
-			const length = Number(hunk[1] ?? 1) + Number(hunk[2] ?? 1);
-			const body = lines.slice(index + 1, index + 1 + length).filter(bodyLine => !bodyLine.startsWith('\\'));
+			// The body ends when its removed and added lines reach the hunk's counts; a no-newline marker counts as neither.
+			let [removedLeft, addedLeft] = [Number(hunk[1] ?? 1), Number(hunk[2] ?? 1)];
+			const body = [];
+			while ((removedLeft > 0 || addedLeft > 0) && index + 1 < lines.length) {
+				const bodyLine = lines[++index];
+				removedLeft -= bodyLine.startsWith('-') ? 1 : 0;
+				addedLeft -= bodyLine.startsWith('+') ? 1 : 0;
+				body.push(bodyLine);
+			}
+
 			pairHunk(oldPrefix, newPrefix, body);
-			index += length;
 		}
 	}
 

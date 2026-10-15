@@ -314,6 +314,40 @@ test('renamedTitles maps nothing when a declaration keeps its title', () => {
 	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
 });
 
+test('renamedTitles reads the whole hunk when it holds no-newline markers', () => {
+	const marker = '\\ No newline at end of file';
+	const diff = hunk('test/retry.ts', ["-test('a', t => {", "-test('b', t => {", marker, "+test('c', t => {", "+test('d', t => {", marker]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › c', 'retry › a'], ['retry › d', 'retry › b']]));
+});
+
+test('renamedTitles uses the old path for removed declarations and the new path for added ones', () => {
+	const diff = ['diff --git a/test/old.ts b/test/new.ts', 'similarity index 90%', 'rename from test/old.ts', 'rename to test/new.ts', '--- a/test/old.ts', '+++ b/test/new.ts', '@@ -1 +1 @@', "-test('x', t => {", "+test('y', t => {"].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['new › y', 'old › x']]));
+});
+
+test('renamedTitles pairs nothing in a new or a deleted test file', () => {
+	const diff = [
+		'diff --git a/test/added.ts b/test/added.ts', 'new file mode 100644', '--- /dev/null', '+++ b/test/added.ts', '@@ -0,0 +1 @@', "+test('x', t => {",
+		'diff --git a/test/gone.ts b/test/gone.ts', 'deleted file mode 100644', '--- a/test/gone.ts', '+++ /dev/null', '@@ -1 +0,0 @@', "-test('y', t => {",
+	].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
+test('renamedTitles reads a path that git ends with a tab', () => {
+	const diff = ['diff --git a/test/my file.ts b/test/my file.ts', '--- a/test/my file.ts\t', '+++ b/test/my file.ts\t', '@@ -1 +1 @@', "-test('x', t => {", "+test('y', t => {"].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['my file › y', 'my file › x']]));
+});
+
+test('renamedTitles throws on a file header it cannot read, such as a quoted path', () => {
+	const diff = [hunk('test/a.ts', ["-test('p', t => {", "+test('q', t => {"]), 'diff --git "a/test/\\303\\251.ts" "b/test/\\303\\251.ts"', '--- "a/test/\\303\\251.ts"', '+++ "b/test/\\303\\251.ts"', '@@ -1 +1 @@', "-test('r', t => {", "+test('s', t => {"].join('\n');
+	assert.throws(() => renamedTitles(diff, testsConfig), /cannot read the file header/);
+});
+
+test('renamedTitles skips a title with an escape other than a quote or a backslash', () => {
+	const diff = hunk('test/retry.ts', ["-test('line\\nbreak', t => {", "+test('line\\nbreaks', t => {"]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
 test('regressionCandidates reruns a baseline-passing test that fails and lists the lost titles of its test file', () => {
 	const baseline = {'a › passes': true, 'a › fails': true, 'a › vanishes': true, 'a › was failing': false};
 	const run = {'a › passes': true, 'a › fails': false, 'a › was failing': false};
