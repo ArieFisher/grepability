@@ -44,7 +44,7 @@ export const parseTap = output => {
 // files: each test file with lost titles that passed in the baseline. pairs is the number of those lost titles
 // a new title in the same test file can stand for: a renamed test. A new title pairs with a lost title that
 // passed in the baseline before one that failed, so a rename alone never counts. failingNewTitles are the
-// failing tests under a new title; renamedRegressions counts them up to pairs. Which new title renames which
+// failing tests under a new title; renamedRegressions counts those that fail every rerun, up to pairs. Which new title renames which
 // lost title is unknown, so the pairing works on counts. A test file whose only lost titles failed in the
 // baseline is not listed, so a renamed test that failed in the baseline never counts.
 export const regressionCandidates = (baselineTests, runTests, separator) => {
@@ -69,33 +69,47 @@ export const regressionCandidates = (baselineTests, runTests, separator) => {
 	return {rerun, files};
 };
 
-// Renamed tests that count as regressions: the failing new titles that failed every rerun, up to the number
-// of pairs in their test file.
-export const renamedRegressions = (confirmedFailingNewTitles, pairs) => confirmedFailingNewTitles.slice(0, pairs);
+// Titles the scoring script reruns in one test file beyond the pairs, for lost titles and for failing new
+// titles alike. A rerun of a test that hangs takes the 60-second timeout of the rerun command, so the slow
+// case costs at most this many timeouts per test file beyond the pairs. Five reruns that all fail beyond the
+// pairs show a test file whose tests are gone or broken.
+export const extraRerunLimit = 5;
 
-// Failed reruns after the pairs, before the scoring script stops rerunning lost titles of one test file. A
-// renamed test's old title fails its rerun at once, because the title is gone; a test that still exists but
-// hangs takes the 60-second timeout of the rerun command. Five failures beyond the pairs show a test file
-// whose tests are gone or broken, and cap the slow case at about five minutes per test file.
-export const lostTitleFailureLimit = 5;
+// Renamed tests that count as regressions: failing new titles for which `failsEveryRerun(title)` holds, up
+// to the number of pairs in their test file. It reruns titles in order and stops when pairs titles are
+// confirmed, or after pairs plus extraRerunLimit titles.
+export const renamedRegressions = (failingNewTitles, pairs, failsEveryRerun) => {
+	const confirmed = [];
+	for (const title of failingNewTitles.slice(0, pairs + extraRerunLimit)) {
+		if (confirmed.length === pairs) {
+			break;
+		}
 
-// Judges the lost titles of one test file, rerunning each once in order with `passesRerun(title)`. A pass
-// means the test still exists and its test file stopped partway in the run, so nothing counts as removed.
-// When pairs plus lostTitleFailureLimit reruns have failed, or every lost title has failed, the lost titles
-// beyond the pairs count as removed tests.
-export const judgeLostTitles = (lostTitles, pairs, passesRerun) => {
-	if (lostTitles.length <= pairs) {
-		return {removed: 0, stoppedPartway: false, reruns: 0};
-	}
-
-	const limit = Math.min(lostTitles.length, pairs + lostTitleFailureLimit);
-	for (let reruns = 1; reruns <= limit; reruns++) {
-		if (passesRerun(lostTitles[reruns - 1])) {
-			return {removed: 0, stoppedPartway: true, reruns};
+		if (failsEveryRerun(title)) {
+			confirmed.push(title);
 		}
 	}
 
-	return {removed: lostTitles.length - pairs, stoppedPartway: false, reruns: limit};
+	return confirmed;
+};
+
+// Judges the lost titles of one test file, rerunning each once in order with `passesRerun(title)`. A pass
+// means the test still exists and its test file stopped partway in the run; the failed reruns before it,
+// beyond the pairs, count as removed tests. When pairs plus extraRerunLimit reruns have failed, or every lost
+// title has failed, every lost title beyond the pairs counts as a removed test.
+export const judgeLostTitles = (lostTitles, pairs, passesRerun) => {
+	if (lostTitles.length <= pairs) {
+		return {removed: 0, stoppedPartway: false};
+	}
+
+	const limit = Math.min(lostTitles.length, pairs + extraRerunLimit);
+	for (let failures = 0; failures < limit; failures++) {
+		if (passesRerun(lostTitles[failures])) {
+			return {removed: Math.max(0, failures - pairs), stoppedPartway: true};
+		}
+	}
+
+	return {removed: lostTitles.length - pairs, stoppedPartway: false};
 };
 
 // The first word of every sub-command in a shell command line. A sub-command ends at &&, ||, ;, |, &, or a

@@ -130,7 +130,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			const failing = [
 				...rerun.filter(name => rerunTest(run.directory, name) === 0),
 				...files.flatMap(({file, lostTitles, pairs, failingNewTitles}) => {
-					const renamed = renamedRegressions(failingNewTitles.filter(title => rerunTest(run.directory, title) === 0), pairs);
+					const renamed = renamedRegressions(failingNewTitles, pairs, title => rerunTest(run.directory, title) === 0);
 					const judged = judgeLostTitles(lostTitles, pairs, title => rerunTest(run.directory, title, 1) === 1);
 					if (judged.stoppedPartway) {
 						stoppedPartway.push(file);
