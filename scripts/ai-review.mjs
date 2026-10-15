@@ -1,4 +1,4 @@
-// Stand-in reviewer: an AI model tags the reviewer sheet, one chunk per fresh session, with no tools.
+// AI stand-in reviewer: tags the review sheet, one chunk per fresh session, with no tools.
 // Each run is independent; run it twice with different names to get two reviewers. A person can
 // replace either file by tagging truth/review-sheet.csv by hand.
 // Each sheet line is shown with the source lines around it (--context, default 3 each side), so the
@@ -7,23 +7,26 @@
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fromCsv, loadConcepts, projectRoot, toCsv, versionDir} from './lib.mjs';
+import {acceptTags, fromCsv, integerOption, loadConcepts, loadTasks, option, projectRoot, publishedVersion, toCsv, versionDir} from './lib.mjs';
 
 const argv = process.argv.slice(2);
-const option = (name, fallback) => {
-	const index = argv.indexOf(`--${name}`);
-	return index === -1 ? fallback : argv[index + 1];
-};
-
 const name = argv[0];
 if (!name || name.startsWith('--')) {
-	throw new Error('Usage: node ai-review.mjs <reviewer-name> [--model sonnet] [--chunk 120] [--parallel 4]');
+	throw new Error('Usage: node ai-review.mjs <reviewer-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]');
 }
 
-const model = option('model', 'sonnet');
-const chunkSize = Number(option('chunk', 120));
-const parallel = Number(option('parallel', 4));
-const contextLines = Number(option('context', 3));
+// The reviewer runs the same command and model as the agent, so one place names them.
+const {agent} = loadTasks();
+const model = option(argv, 'model', agent.model);
+const chunkSize = integerOption(argv, 'chunk', 120, 1);
+const parallel = integerOption(argv, 'parallel', 4, 1);
+const contextLines = integerOption(argv, 'context', 3, 0);
+// A hand-tagged file under this name would be lost to a rerun, so an existing file stops the script.
+// Remove the file, or pick another reviewer name, to run again.
+const output = path.join(projectRoot, 'truth', `reviewer-${name}.csv`);
+if (fs.existsSync(output)) {
+	throw new Error(`${output} exists. Remove it or pick another reviewer name.`);
+}
 const {concepts} = loadConcepts();
 const rows = fromCsv(fs.readFileSync(path.join(projectRoot, 'truth', 'review-sheet.csv'), 'utf8'));
 const conceptText = concepts.map(concept => `- ${concept.id}: ${concept.name}. ${concept.definition}`).join('\n');
@@ -32,7 +35,7 @@ const conceptText = concepts.map(concept => `- ${concept.id}: ${concept.name}. $
 const sourceCache = new Map();
 const sourceLines = file => {
 	if (!sourceCache.has(file)) {
-		sourceCache.set(file, fs.readFileSync(path.join(versionDir('published'), file), 'utf8').split('\n'));
+		sourceCache.set(file, fs.readFileSync(path.join(versionDir(publishedVersion), file), 'utf8').split('\n'));
 	}
 
 	return sourceCache.get(file);
@@ -64,7 +67,7 @@ ${chunk.map(item => withContext(item)).join('\n\n')}
 Reply with only a JSON object mapping item numbers to arrays of concept ids, listing only items whose marked line refers to at least one concept. Example: {"12": ["retry-count"], "15": ["retry-delay", "jitter"]}`;
 
 const ask = text => new Promise((resolve, reject) => {
-	const child = spawn('claude', ['-p', '--model', model, '--tools', '', '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config'], {stdio: ['pipe', 'pipe', 'pipe']});
+	const child = spawn(agent.command, ['-p', '--model', model, '--tools', '', '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config'], {stdio: ['pipe', 'pipe', 'pipe']});
 	let stdout = '';
 	let stderr = '';
 	child.stdout.on('data', data => {
@@ -75,30 +78,21 @@ const ask = text => new Promise((resolve, reject) => {
 	});
 	child.on('close', code => {
 		if (code !== 0) {
-			reject(new Error(`claude exited ${code}: ${stderr.slice(0, 500)}`));
+			reject(new Error(`${agent.command} exited ${code}: ${stderr.slice(0, 500)}`));
 			return;
 		}
 
-		resolve(JSON.parse(stdout));
+		try {
+			resolve(JSON.parse(stdout));
+		} catch (error) {
+			reject(new Error(`${agent.command} printed output that is not JSON: ${error.message}`));
+		}
+	});
+	child.on('error', error => {
+		reject(new Error(`${agent.command} did not start: ${error.message}`));
 	});
 	child.stdin.end(text);
 });
-
-// Replies hold flat objects of arrays. If the model corrects itself, the last object wins.
-const parseTags = result => {
-	const objects = (result.match(/\{[^{}]*\}/g) ?? []).flatMap(text => {
-		try {
-			return [JSON.parse(text)];
-		} catch {
-			return [];
-		}
-	});
-	if (objects.length === 0) {
-		throw new Error(`No JSON object in reply: ${result.slice(0, 300)}`);
-	}
-
-	return objects.at(-1);
-};
 
 const indexed = rows.map((row, index) => ({index, row}));
 const chunks = [];
@@ -119,8 +113,9 @@ const worker = async () => {
 				// eslint-disable-next-line no-await-in-loop
 				const reply = await ask(prompt(chunks[chunkIndex]));
 				cost += reply.total_cost_usd ?? 0;
-				for (const [index, ids] of Object.entries(parseTags(reply.result))) {
-					tags.set(Number(index), ids.filter(id => validIds.has(id)));
+				const chunkItems = new Set(chunks[chunkIndex].map(item => item.index));
+				for (const [index, ids] of acceptTags(reply.result, chunkItems, validIds)) {
+					tags.set(index, ids);
 				}
 
 				console.log(`${name}: chunk ${chunkIndex + 1}/${chunks.length} done`);
@@ -139,7 +134,6 @@ const worker = async () => {
 
 await Promise.all(Array.from({length: parallel}, worker));
 
-const output = path.join(projectRoot, 'truth', `reviewer-${name}.csv`);
 fs.writeFileSync(output, toCsv([
 	['file', 'line', 'kind', 'concepts', 'text'],
 	...rows.map((row, index) => [row.file, row.line, row.kind, (tags.get(index) ?? []).join(' '), row.text]),

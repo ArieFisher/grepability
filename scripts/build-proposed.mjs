@@ -4,18 +4,16 @@
 // Then checks that every file keeps its line count (so ground-truth lines map 1:1) and that
 // type checks and tests give the same results as the published codebase.
 // Usage: node build-proposed.mjs
-import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {compareTests, corpusFiles, createService, positionInText, projectRoot, readJson, relative, versionDir, workDir} from './lib.mjs';
+import {compareTests, compileCodebase, copyCodebase, corpusFiles, createService, positionInText, projectRoot, proposedVersion, publishedVersion, readJson, relative, runChecked, versionDir, workDir} from './lib.mjs';
 
-const source = versionDir('published');
-const target = versionDir('proposed');
+const source = versionDir(publishedVersion);
+const target = versionDir(proposedVersion);
 const edits = readJson(path.join(projectRoot, 'config', 'proposed-edits.json'));
 
 fs.rmSync(target, {recursive: true, force: true});
-fs.cpSync(source, target, {recursive: true, filter: from => !/[/\\](?:node_modules|\.git)$/.test(from)});
-fs.symlinkSync('../deps/node_modules', path.join(target, 'node_modules'), 'dir');
+copyCodebase(source, target);
 
 const texts = new Map(corpusFiles(target).map(file => [path.join(target, file), fs.readFileSync(path.join(target, file), 'utf8')]));
 const log = [];
@@ -30,6 +28,10 @@ for (const rename of edits.renames) {
 	}
 
 	const locations = service.findRenameLocations(absolute, position, false, false, {providePrefixAndSuffixTextForRename: true});
+	if (!locations || locations.length === 0) {
+		throw new Error(`Rename of ${rename.name} at ${rename.file}:${rename.line} has no locations.`);
+	}
+
 	const byFile = Map.groupBy(locations, location => location.fileName);
 	for (const [file, fileLocations] of byFile) {
 		if (!texts.has(file)) {
@@ -63,26 +65,43 @@ for (const edit of edits.comments) {
 
 log.push(`wording edits: ${edits.comments.length}`);
 
+// Every file keeps its line count, or nothing is written: the ground truth maps lines 1:1.
 for (const [file, text] of texts) {
 	const original = fs.readFileSync(path.join(source, relative(target, file)), 'utf8');
 	if (original.split('\n').length !== text.split('\n').length) {
 		throw new Error(`Line count changed in ${relative(target, file)}`);
 	}
+}
 
+for (const [file, text] of texts) {
 	fs.writeFileSync(file, text);
 }
 
 console.log(log.join('\n'));
 
+// The copied compile output still holds the published names. The proposed codebase compiles from its own source.
+compileCodebase(target);
+
 // Same type-check and test results as the published codebase?
-execFileSync('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), 'proposed'], {stdio: 'inherit'});
-const baselinePath = path.join(workDir, 'tests-published.json');
-if (!fs.existsSync(baselinePath)) {
-	execFileSync('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), 'published'], {stdio: 'inherit'});
+// run-tests exits 1 after a failed type check and still writes its result, so only a missing file is a failure.
+const runTests = version => {
+	const resultPath = path.join(workDir, `tests-${version}.json`);
+	fs.rmSync(resultPath, {force: true});
+	runChecked('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), version], {stdio: 'inherit'});
+	if (!fs.existsSync(resultPath)) {
+		throw new Error(`The test run of ${version} wrote no result in ${resultPath}.`);
+	}
+
+	return readJson(resultPath);
+};
+
+const proposed = runTests(proposedVersion);
+const baselinePath = path.join(workDir, `tests-${publishedVersion}.json`);
+const published = fs.existsSync(baselinePath) ? readJson(baselinePath) : runTests(publishedVersion);
+if (!published.typecheck) {
+	throw new Error(`The published codebase fails its type check, so it is no baseline:\n${published.typecheckErrors}`);
 }
 
-const published = readJson(baselinePath);
-const proposed = readJson(path.join(workDir, 'tests-proposed.json'));
 if (proposed.typecheck) {
 	const {differences, flaky} = compareTests(published, proposed);
 	if (flaky.length > 0) {

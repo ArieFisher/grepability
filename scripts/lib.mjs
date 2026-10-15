@@ -1,17 +1,19 @@
 // Shared helpers: codebase configuration, file lists, TypeScript language service, comment lines, test reruns.
-import {spawnSync} from 'node:child_process';
+import {execFileSync, spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
-import {key} from './helpers.mjs';
 
 export * from './helpers.mjs';
 
-export const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+export const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const workDir = path.join(projectRoot, 'work');
 // The two versions of the codebase: the published codebase and the proposed codebase. Each lives in work/<version>.
-export const versions = ['published', 'proposed'];
+export const publishedVersion = 'published';
+export const proposedVersion = 'proposed';
+export const versions = [publishedVersion, proposedVersion];
 export const versionDir = version => path.join(workDir, version);
 export const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 export const writeJson = (file, data) => {
@@ -20,6 +22,46 @@ export const writeJson = (file, data) => {
 };
 
 export const loadConcepts = () => readJson(path.join(projectRoot, 'config', 'concepts.json'));
+export const loadTasks = () => readJson(path.join(projectRoot, 'config', 'tasks.json'));
+
+// Cap on the output a child process may print to a script: 256 MiB, far above the diff or test
+// output of the Ky codebase. A child that prints more fails with an error.
+export const maxOutputBytes = 1 << 28;
+
+// A fresh run copy of a version: the files in a new directory, one commit named Snapshot, shared
+// dependencies linked. The diff after a run is taken against that snapshot commit.
+export const makeRunCopy = (source, directory) => {
+	copyCodebase(source, directory);
+	const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
+	git('init', '-q');
+	git('add', '-A');
+	git('-c', 'user.name=snapshot', '-c', 'user.email=snapshot@example.invalid', 'commit', '-q', '-m', 'Snapshot');
+	return {directory, snapshot: git('rev-parse', 'HEAD').trim()};
+};
+
+// Everything the agent changed since the snapshot, whether it left the change unstaged, staged it,
+// committed it, or wrote a new file. Staging first brings new files into the diff. The a/ and b/ prefixes
+// are set here because a git configuration of diff.noprefix drops them, and the diff parser needs them.
+export const diffSinceSnapshot = (directory, snapshot) => {
+	execFileSync('git', ['add', '-A'], {cwd: directory, stdio: 'ignore'});
+	return execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color', '--src-prefix=a/', '--dst-prefix=b/', snapshot], {cwd: directory, encoding: 'utf8', maxBuffer: maxOutputBytes});
+};
+
+// Writes a version's files to a new directory without node_modules and .git, and links node_modules
+// to the dependencies that every version and run copy shares (work/deps, installed by setup.sh).
+export const copyCodebase = (source, destination) => {
+	fs.mkdirSync(path.dirname(destination), {recursive: true});
+	fs.cpSync(source, destination, {recursive: true, filter: from => !/[/\\](?:node_modules|\.git)$/.test(from)});
+	fs.symlinkSync(path.join(workDir, 'deps', 'node_modules'), path.join(destination, 'node_modules'), 'dir');
+};
+
+// The install command must skip the dependencies' own install scripts, which would otherwise run code from
+// every dependency on this machine. A command without the flag throws.
+export const checkInstallCommand = command => {
+	if (!command.includes('--ignore-scripts')) {
+		throw new Error(`The install command ${command.join(' ')} must contain --ignore-scripts, so dependency install scripts never run.`);
+	}
+};
 
 // The codebase: which repository and commit the experiment runs on, which files form the corpus,
 // and how to type-check and test it. Every field is required, so a missing one fails here rather
@@ -32,12 +74,13 @@ export const loadCodebase = () => {
 	}
 
 	const codebase = readJson(codebaseFile);
-	const required = ['repository', 'commit', 'corpus.directory', 'corpus.extension', 'typecheck', 'tests.directory', 'tests.extension', 'tests.skip', 'tests.command', 'tests.rerun', 'tests.titleSeparator'];
+	const required = ['repository', 'commit', 'corpus.directory', 'corpus.extension', 'install', 'compile', 'typecheck', 'tests.directory', 'tests.extension', 'tests.skip', 'tests.command', 'tests.rerun', 'tests.titleSeparator'];
 	const missing = required.filter(field => field.split('.').reduce((value, part) => value?.[part], codebase) === undefined);
 	if (missing.length > 0) {
 		throw new Error(`${codebaseFile} is missing: ${missing.join(', ')}`);
 	}
 
+	checkInstallCommand(codebase.install);
 	codebaseCache = codebase;
 	return codebase;
 };
@@ -54,12 +97,50 @@ export const corpusFiles = root => {
 // Whether a repo-relative file:line key or path lies in the corpus.
 export const inCorpus = fileOrKey => fileOrKey.startsWith(`${loadCodebase().corpus.directory}/`);
 
+// Runs a command and returns its result. A command that cannot start (missing program, no
+// permission, output past the cap) throws, because a null exit status reads as "no output" otherwise.
+// A command that runs and exits non-zero returns normally; the caller reads `status`.
+export const runChecked = (command, args, options = {}) => {
+	const result = spawnSync(command, args, {encoding: 'utf8', maxBuffer: maxOutputBytes, ...options});
+	if (result.error || result.status === null) {
+		throw new Error(`${command} did not run to the end: ${result.error?.message ?? `signal ${result.signal}`}`);
+	}
+
+	return result;
+};
+
+// Runs one configured command in a directory, as an argument list so no shell reads it. A command that
+// cannot start or exits non-zero throws.
+const runStep = (label, command, root) => {
+	const [program, ...args] = command;
+	const result = runChecked(program, args, {cwd: root});
+	if (result.status !== 0) {
+		throw new Error(`The ${label} command ${command.join(' ')} exited with status ${result.status} in ${root}:\n${(result.stdout + result.stderr).slice(-2000)}`);
+	}
+};
+
+// Installs the codebase's dependencies in one directory with the configured install command.
+export const installCodebase = (root, command = loadCodebase().install) => {
+	checkInstallCommand(command);
+	runStep('install', command, root);
+};
+
+// Runs the codebase's own compile step in one directory, so its type tests see the declarations of
+// that directory's source. A failed step throws.
+export const compileCodebase = (root, command = loadCodebase().compile) => runStep('compile', command, root);
+
 // Language service over the project's own tsconfig.json, so references match what the compiler sees.
-// Files can be overridden in memory (used when applying renames).
+// Files can be overridden in memory (used when applying renames). A tsconfig that is missing or has
+// errors stops here, because a service over the wrong file list finds the wrong references.
 export const createService = (root, overrides = new Map()) => {
 	const configPath = path.join(root, 'tsconfig.json');
 	const config = ts.readConfigFile(configPath, ts.sys.readFile);
-	const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root, {noEmit: true}, configPath);
+	const parsed = ts.parseJsonConfigFileContent(config.config ?? {}, ts.sys, root, {noEmit: true}, configPath);
+	const errors = [config.error, ...parsed.errors].filter(Boolean);
+	if (errors.length > 0) {
+		throw new Error(`tsconfig ${configPath} has errors: ${errors.map(error => ts.flattenDiagnosticMessageText(error.messageText, '\n')).join('; ')}`);
+	}
+
 	const files = parsed.fileNames;
 	const host = {
 		getScriptFileNames: () => files,
@@ -100,16 +181,16 @@ export const positionInText = (text, file, line, name, nth = 0) => {
 	const lineText = text.slice(lineStart).split('\n')[0];
 	let column = -1;
 	for (let i = 0; i <= nth; i++) {
-		column = findIdentifier(lineText, name, column + 1);
+		column = findName(lineText, name, column + 1);
 		if (column === -1) {
-			throw new Error(`Identifier ${name} (occurrence ${nth}) not found at ${file}:${line}`);
+			throw new Error(`Name ${name} (occurrence ${nth}) not found at ${file}:${line}`);
 		}
 	}
 
 	return lineStart + column;
 };
 
-const findIdentifier = (lineText, name, from) => {
+const findName = (lineText, name, from) => {
 	const pattern = new RegExp(`(?<![\\w$#])${name.replaceAll(/[$#]/g, String.raw`\$&`)}(?![\\w$])`, 'g');
 	pattern.lastIndex = from;
 	const match = pattern.exec(lineText);
@@ -121,58 +202,75 @@ export const lineOf = (root, file, position) => {
 	return text.slice(0, position).split('\n').length;
 };
 
-// Every comment line (1-based) per file, with its text.
-export const commentLines = root => {
+// Every comment line (1-based) of one file's text, with its text. The parser decides what is a
+// comment, so a template tail or a regular expression that holds `//` or `/*` is not one. Comments
+// are the trivia before and after each token of the tree; JSDoc nodes are skipped because the
+// comment that holds them is already covered.
+export const commentLinesOfText = (file, text) => {
+	const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+	const ranges = new Map();
+	const addRanges = found => {
+		for (const range of found ?? []) {
+			ranges.set(range.pos, range.end);
+		}
+	};
+
+	const visit = node => {
+		addRanges(ts.getLeadingCommentRanges(text, node.getFullStart()));
+		addRanges(ts.getTrailingCommentRanges(text, node.getEnd()));
+		for (const child of node.getChildren(sf)) {
+			if (child.kind < ts.SyntaxKind.FirstJSDocNode || child.kind > ts.SyntaxKind.LastJSDocNode) {
+				visit(child);
+			}
+		}
+	};
+
+	visit(sf);
+	const lines = new Set();
+	for (const [start, end] of ranges) {
+		const first = sf.getLineAndCharacterOfPosition(start).line;
+		const last = sf.getLineAndCharacterOfPosition(end).line;
+		for (let line = first; line <= last; line++) {
+			lines.add(line + 1);
+		}
+	}
+
+	const textLines = text.split('\n');
 	const result = [];
-	for (const file of corpusFiles(root)) {
-		const text = fs.readFileSync(path.join(root, file), 'utf8');
-		const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-		const seen = new Set();
-		const lines = new Set();
-		const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text);
-		for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan()) {
-			if (kind === ts.SyntaxKind.SingleLineCommentTrivia || kind === ts.SyntaxKind.MultiLineCommentTrivia) {
-				const start = scanner.getTokenStart();
-				if (seen.has(start)) {
-					continue;
-				}
-
-				seen.add(start);
-				const first = sf.getLineAndCharacterOfPosition(start).line;
-				const last = sf.getLineAndCharacterOfPosition(scanner.getTokenEnd()).line;
-				for (let line = first; line <= last; line++) {
-					lines.add(line + 1);
-				}
-			}
+	for (const line of [...lines].sort((a, b) => a - b)) {
+		const lineText = textLines[line - 1].trim();
+		if (/^(?:\/\*\*?|\*\/|\*|\/\/)?$/.test(lineText)) {
+			continue; // Comment delimiters and blank comment lines carry no words.
 		}
 
-		const textLines = text.split('\n');
-		for (const line of [...lines].sort((a, b) => a - b)) {
-			const lineText = textLines[line - 1].trim();
-			if (/^(?:\/\*\*?|\*\/|\*|\/\/)?$/.test(lineText)) {
-				continue; // Comment delimiters and blank comment lines carry no words.
-			}
-
-			result.push({file, line, text: lineText});
-		}
+		result.push({file, line, text: lineText});
 	}
 
 	return result;
 };
 
-// Path of the hidden test inside a run copy. The name is fixed so scoring can pick its results out of the test run.
+// Every comment line of every corpus file under root.
+export const commentLines = root => corpusFiles(root)
+	.flatMap(file => commentLinesOfText(file, fs.readFileSync(path.join(root, file), 'utf8')));
+
+// The hidden test's file name inside a run copy. The name is fixed so scoring can pick its results out of the test run.
+const hiddenTestName = 'hidden-acceptance';
+
 export const hiddenTestPath = root => {
 	const {directory, extension} = loadCodebase().tests;
-	return path.join(root, directory, `hidden-acceptance${extension}`);
+	return path.join(root, directory, `${hiddenTestName}${extension}`);
 };
 
-export const isHiddenTest = title => title.startsWith('hidden-acceptance');
+export const isHiddenTest = title => title.startsWith(hiddenTestName);
+
+// How often a differing test reruns. Three reruns in one directory show whether the test is steady
+// (all agree) or flaky (they differ), at the cost of three test-file runs per differing test.
+export const rerunCount = 3;
 
 // Reruns one test a few times by its TAP title; returns how many runs passed. The codebase's rerun
 // command is a template: {file} is the test file the title starts with, {name} the rest of the title.
 // A `*` in the name is escaped so a runner that matches names as globs takes it literally.
-export const rerunTest = (root, title, times = 3) => {
-	const {tests} = loadCodebase();
+export const rerunTest = (root, title, times = rerunCount, tests = loadCodebase().tests) => {
 	const [file, ...nameParts] = title.split(tests.titleSeparator);
 	const name = nameParts.join(tests.titleSeparator).replaceAll('*', String.raw`\*`);
 	const [command, ...args] = tests.rerun.map(part => part
@@ -180,7 +278,7 @@ export const rerunTest = (root, title, times = 3) => {
 		.replaceAll('{name}', name));
 	let passed = 0;
 	for (let i = 0; i < times; i++) {
-		const result = spawnSync(command, args, {cwd: root, encoding: 'utf8'});
+		const result = runChecked(command, args, {cwd: root});
 		if (result.status === 0 && /^ok \d+ /m.test(result.stdout)) {
 			passed++;
 		}
@@ -204,10 +302,10 @@ export const compareTests = (resultA, resultB) => {
 
 		const passesA = rerunTest(resultA.directory, name);
 		const passesB = rerunTest(resultB.directory, name);
-		if ((passesA > 0 && passesA < 3) || (passesB > 0 && passesB < 3) || (passesA > 0) === (passesB > 0)) {
+		if ((passesA > 0 && passesA < rerunCount) || (passesB > 0 && passesB < rerunCount) || (passesA > 0) === (passesB > 0)) {
 			flaky.push(name);
 		} else {
-			differences.push({name, a: passesA === 3, b: passesB === 3});
+			differences.push({name, a: passesA === rerunCount, b: passesB === rerunCount});
 		}
 	}
 

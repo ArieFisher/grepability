@@ -3,7 +3,7 @@
 A measure of how effective an AI coding agents like Codex or Claude code (AKA: copilots, agentic harness, LLM coder, etc. ) can be on a codebase. 
 
 Conceptual grepability is blend of 2 scores: 
-1. `search score`: whether the AI coding agent can find all of the relevant codebase (e.g. code, comments, etc.) for given concepts
+1. `search score`: whether the agent can find all of the relevant codebase (e.g. code, comments, etc.) for given concepts
 2. `agent score`: whether that changes how effective an AI agent is on executing its tasks
 
 ## context
@@ -29,6 +29,6 @@ This experiment was designed to test the hypothesis that grepable code makes an 
 
 The experiment uses
 1. a codebase where the same concept(s) are represented differently (in words, variables, function names, etc) 
-2. a proposed codebase where each concepts has been harmonized across the codebase into a single name (word or set of words).  In this way, one search pattern matches the concept in both the code and the prose. 
-   e.g. one pattern that matches: "retryCount", "retry_count", "retry-count", and "retry count"
+2. a proposed codebase where each concepts has been harmonized across the codebase into a single name (word or set of words).  In this way, one search term matches the concept in both the code and the prose. 
+   e.g. one search term that matches: "retryCount", "retry_count", "retry-count", and "retry count"
 	1. In the published codebase: a comment that says "the number of retries attempted" is a miss. In the proposed codebase, the comment is rewritten to use the code's name (with spaces): as "the retry count".  The same search now finds the field, the parameter, and the comment (!) 
