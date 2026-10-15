@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, readWrongEdits, regressionCandidates, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, readWrongEdits, regressionCandidates, removedTests, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -252,14 +252,45 @@ test('shuffle returns a permutation and leaves the input alone', () => {
 	assert.deepEqual([...output].sort(), input);
 });
 
-test('regressionCandidates lists a baseline-passing test that fails or is missing in the run', () => {
+test('regressionCandidates reruns a baseline-passing test that fails and lists a lost title as unmatched', () => {
 	const baseline = {'a › passes': true, 'a › fails': true, 'a › vanishes': true, 'a › was failing': false};
 	const run = {'a › passes': true, 'a › fails': false, 'a › was failing': false};
-	assert.deepEqual(regressionCandidates(baseline, run), ['a › fails', 'a › vanishes']);
+	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: ['a › fails'], unmatched: [{file: 'a', titles: ['a › vanishes'], spare: 0}]});
 });
 
 test('regressionCandidates skips a failing test that the baseline lacks', () => {
-	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}), []);
+	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}, ' › '), {rerun: [], unmatched: []});
+});
+
+test('regressionCandidates treats a renamed test that passes as no regression', () => {
+	const baseline = {'a › retryCount is 1': true, 'a › other': true};
+	const run = {'a › retryNumber is 1': true, 'a › other': true};
+	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: [], unmatched: []});
+});
+
+test('regressionCandidates reruns a renamed test that fails under its new title', () => {
+	const baseline = {'a › retryCount is 1': true};
+	const run = {'a › retryNumber is 1': false};
+	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: ['a › retryNumber is 1'], unmatched: []});
+});
+
+test('regressionCandidates pairs new titles with lost titles only within the same test file', () => {
+	const baseline = {'a › lost': true, 'b › kept': true};
+	const run = {'b › kept': true, 'b › added': true};
+	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: [], unmatched: [{file: 'a', titles: ['a › lost'], spare: 0}]});
+});
+
+test('regressionCandidates pairs a new title with a lost title that failed in the baseline first', () => {
+	assert.deepEqual(regressionCandidates({'a › was failing': false}, {}, ' › '), {rerun: [], unmatched: []});
+	const baseline = {'a › was failing': false, 'a › passes': true};
+	const run = {'a › renamed': true};
+	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: [], unmatched: [{file: 'a', titles: ['a › passes'], spare: 0}]});
+});
+
+test('removedTests counts failed reruns of lost titles beyond the spare new titles', () => {
+	assert.equal(removedTests(0, 0), 0);
+	assert.equal(removedTests(3, 2), 1);
+	assert.equal(removedTests(2, 5), 0);
 });
 
 test('blindSheetRows keeps the rows already on the sheet and appends only runs it lacks', () => {

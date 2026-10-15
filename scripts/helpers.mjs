@@ -39,11 +39,39 @@ export const parseTap = output => {
 	return tests;
 };
 
-// Tests that may be regressions: those that passed in the baseline and fail or are missing in the run.
-// A failing test the baseline lacks is not listed. Each candidate still needs a rerun to rule out flakiness.
-export const regressionCandidates = (baselineTests, runTests) => Object.entries(baselineTests)
-	.filter(([name, passed]) => passed && runTests[name] !== true)
-	.map(([name]) => name);
+// Tests that may be regressions, matched by title within each test file (the title up to the separator).
+// rerun: tests that need a rerun to rule out flakiness. A test that passed in the baseline and fails in the
+// run is one. A run title the baseline lacks counts as a renamed test when its file lost baseline titles,
+// and is one when it fails; in a file that lost no titles, a failing new test is not listed.
+// unmatched: each file that lost more baseline-passing titles than its new titles can pair with, with
+// those lost titles and the count of new titles left to pair (spare). A lost title is either renamed,
+// removed, or never reported because the test file stopped partway; a rerun by the old title tells which.
+export const regressionCandidates = (baselineTests, runTests, separator) => {
+	const fileOf = title => title.split(separator)[0];
+	const rerun = Object.entries(baselineTests)
+		.filter(([title, passed]) => passed && Object.hasOwn(runTests, title) && runTests[title] !== true)
+		.map(([title]) => title);
+	const lost = Object.entries(baselineTests).filter(([title]) => !Object.hasOwn(runTests, title));
+	const gained = Object.keys(runTests).filter(title => !Object.hasOwn(baselineTests, title));
+	const unmatched = [];
+	for (const file of new Set(lost.map(([title]) => fileOf(title)))) {
+		const lostHere = lost.filter(([title]) => fileOf(title) === file);
+		const gainedHere = gained.filter(title => fileOf(title) === file);
+		const titles = lostHere.filter(([, passed]) => passed).map(([title]) => title);
+		// A new title pairs first with a lost title that failed in the baseline; the rest can pair with passing ones.
+		const spare = Math.max(0, gainedHere.length - (lostHere.length - titles.length));
+		rerun.push(...gainedHere.filter(title => runTests[title] !== true));
+		if (titles.length > spare) {
+			unmatched.push({file, titles, spare});
+		}
+	}
+
+	return {rerun, unmatched};
+};
+
+// Removed tests in one unmatched file: lost titles that failed their rerun, beyond the new titles left to
+// pair with them. A lost title that passes its rerun still exists; its file stopped partway in the run.
+export const removedTests = (failedTitles, spare) => Math.max(0, failedTitles - spare);
 
 // The first word of every sub-command in a shell command line. A sub-command ends at &&, ||, ;, |, &, or a
 // line break outside quotes; the & of a redirection such as 2>&1 does not end one. A leading NAME=value
