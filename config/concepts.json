@@ -72,7 +72,8 @@
 					"line": 32,
 					"name": "attemptCount"
 				}
-			]
+			],
+			"lockedLines": []
 		},
 		{
 			"id": "retry-delay",
@@ -210,7 +211,8 @@
 					"line": 42,
 					"name": "rateLimitResetAlias"
 				}
-			]
+			],
+			"lockedLines": []
 		},
 		{
 			"id": "progress-callback",
@@ -288,7 +290,8 @@
 					"line": 71,
 					"name": "Progress"
 				}
-			]
+			],
+			"lockedLines": []
 		},
 		{
 			"id": "user-abort",
@@ -351,7 +354,8 @@
 					"line": 19,
 					"name": "abortHandler"
 				}
-			]
+			],
+			"lockedLines": []
 		},
 		{
 			"id": "jitter",
@@ -395,7 +399,8 @@
 					"line": 678,
 					"name": "jitter"
 				}
-			]
+			],
+			"lockedLines": []
 		}
 	]
 }

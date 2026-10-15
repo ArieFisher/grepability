@@ -1,11 +1,12 @@
 // Search score: one case-insensitive ripgrep search per concept per version, scored against the ground truth.
 // Find rate: share of the concept's lines the search finds. Term distinctiveness: share of hits that belong to the concept.
+// The script leaves each concept's locked lines, listed in the concept configuration, out of both parts in both versions.
 // Writes results/search-score.{json,md} and results/misses-<version>.csv (the lines each search missed;
 // the published codebase's misses are the worklist for building the proposed codebase).
 // Usage: node search-score.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, runChecked, splitKey, toCsv, truthStatement, versionDir, versions, writeJson} from './lib.mjs';
+import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, readLockedLines, runChecked, searchRates, splitKey, toCsv, truthStatement, versionDir, versions, writeJson} from './lib.mjs';
 
 const {concepts} = loadConcepts();
 const {corpus} = loadCodebase();
@@ -37,37 +38,31 @@ const search = (root, pattern) => {
 	}));
 };
 
-const lineText = (root, rowKey) => {
-	const {file, line} = splitKey(rowKey);
-	return fs.readFileSync(path.join(root, file), 'utf8').split('\n')[line - 1].trim();
-};
+// The trimmed text of one line, or undefined past the end of the file.
+const lineText = (root, file, line) => fs.readFileSync(path.join(root, file), 'utf8').split('\n')[line - 1]?.trim();
 
 // Every search and line read finishes before any file is written, so a failure leaves results/ as it was.
 const results = [];
 const missesByVersion = new Map();
 for (const version of present) {
 	const root = versionDir(version);
+	// readLockedLines checks every entry in each version, so an entry whose text is missing from either version stops the script.
+	const lockedByConcept = readLockedLines(concepts, (file, line) => lineText(root, file, line));
 	const misses = [];
 	missesByVersion.set(version, misses);
 	for (const concept of concepts) {
 		const expected = new Set(truth.concepts[concept.id].all);
-		const hits = search(root, concept.search);
-		const found = [...hits].filter(hit => expected.has(hit));
-		const missed = [...expected].filter(line => !hits.has(line));
+		const {missed, ...rates} = searchRates(expected, search(root, concept.search), lockedByConcept.get(concept.id));
 		results.push({
 			version,
 			concept: concept.id,
 			control: Boolean(concept.control),
 			search: concept.search,
-			truthLines: expected.size,
-			hits: hits.size,
-			found: found.length,
-			findRate: expected.size === 0 ? null : found.length / expected.size,
-			termDistinctiveness: hits.size === 0 ? null : found.length / hits.size,
+			...rates,
 		});
 		for (const line of missed) {
 			const {file, line: number} = splitKey(line);
-			misses.push([concept.id, file, number, truth.concepts[concept.id].names.includes(line) ? 'name' : 'text', lineText(root, line)]);
+			misses.push([concept.id, file, number, truth.concepts[concept.id].names.includes(line) ? 'name' : 'text', lineText(root, file, number)]);
 		}
 	}
 }

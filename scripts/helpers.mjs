@@ -601,6 +601,52 @@ export const findScore = (listed, expected) => {
 	return {findRate: (expected.size - missed) / expected.size, missed, success: missed === 0};
 };
 
+// The locked lines of each concept, as a map from concept id to a set of file:line keys. Each concept in the
+// concept configuration holds a lockedLines array, empty when nothing is locked. `readLine(file, line)` returns
+// the text of one line of one version, or undefined past the end of the file. A concept without the array, an
+// entry missing its file, line, text, or reason, or an entry whose text is not on its line throws, so a
+// misspelled key or a moved line never reaches the search score.
+export const readLockedLines = (concepts, readLine) => new Map(concepts.map(concept => {
+	if (!Array.isArray(concept.lockedLines)) {
+		throw new TypeError(`Concept ${concept.id}: the lockedLines array is missing; write [] when nothing is locked.`);
+	}
+
+	return [concept.id, new Set(concept.lockedLines.map(entry => {
+		const missing = ['file', 'text', 'reason'].filter(field => typeof entry[field] !== 'string' || entry[field] === '');
+		if (!Number.isInteger(entry.line) || entry.line < 1) {
+			missing.push('line');
+		}
+
+		if (missing.length > 0) {
+			throw new Error(`Concept ${concept.id}: a locked line lacks a valid ${missing.join(', ')}: ${JSON.stringify(entry)}`);
+		}
+
+		const lineKey = key(entry.file, entry.line);
+		if (!readLine(entry.file, entry.line)?.includes(entry.text)) {
+			throw new Error(`Concept ${concept.id}: the locked line ${lineKey} does not hold ${entry.text}, so the line moved or the entry is wrong.`);
+		}
+
+		return lineKey;
+	}))];
+}));
+
+// The two parts of the search score for one concept in one version, with its locked lines left out of the
+// ground truth lines (the find rate denominator), the hits (the term distinctiveness denominator), and the
+// misses. A part with nothing to divide by is null.
+export const searchRates = (expected, hits, locked) => {
+	const truthLines = [...expected].filter(line => !locked.has(line));
+	const scoredHits = new Set([...hits].filter(hit => !locked.has(hit)));
+	const found = truthLines.filter(line => scoredHits.has(line)).length;
+	return {
+		found,
+		truthLines: truthLines.length,
+		hits: scoredHits.size,
+		findRate: truthLines.length === 0 ? null : found / truthLines.length,
+		termDistinctiveness: scoredHits.size === 0 ? null : found / scoredHits.size,
+		missed: truthLines.filter(line => !scoredHits.has(line)),
+	};
+};
+
 // Whether line number `line` (1-based) of a file's lines matches the concept's forms. A line past the end of
 // the file matches nothing.
 export const matchesForms = (fileLines, line, forms) => {
