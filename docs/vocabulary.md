@@ -72,7 +72,7 @@ One term per concept, used in every document, comment, test name, commit message
 | final reply | The agent's last message in a run. The scoring script scores find tasks on its last fenced block. | final answer, response, result text, output |
 | baseline | The type check and test results of a version before any agent touches it. A test that fails in a baseline never counts as a regression. | reference results, control results, original results |
 | hidden test | An acceptance test copied into a run copy after the agent finishes, so the agent cannot read it during the run. | hidden acceptance test, secret test, holdout test |
-| regression | A test that passed in the baseline and fails or is missing in a run, after a rerun confirms the failure. A failing test absent from the baseline is not a regression. | breakage, failure, broken test |
+| regression | A test that passed in the baseline and fails in a run, after a rerun confirms the failure, or that the run removed. The scoring script matches tests by title within each test file: a new title in a file that lost titles counts as a renamed test, judged by its own result. A lost title beyond the new ones gets one rerun; it counts as removed when the rerun fails, and as present when it passes, because then its test file stopped partway in the run. A failing test absent from the baseline, in a file that lost no titles, is not a regression. | breakage, failure, broken test |
 | flaky | A test that both passes and fails across reruns of the same run copy. Flaky tests count as neither regressions nor differences. | unstable, nondeterministic, intermittent |
 
 ## Scores
