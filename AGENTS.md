@@ -153,7 +153,7 @@ Branch prefixes, each with a short kebab-case label: `feature/` new behavior, `f
 
 Stash before switching branches with a dirty tree.
 
-Before creating a branch, fetch from `origin`. When local `main` is behind `origin/main`, pull it first, then branch from local `main`, so local `main` never falls behind the branches made from it.
+Before creating a branch, fetch from `origin` with `git fetch --prune`, so remote branches deleted on GitHub leave the local list. When local `main` is behind `origin/main`, pull it first, then branch from local `main`, so local `main` never falls behind the branches made from it.
 
 ### Review findings
 
