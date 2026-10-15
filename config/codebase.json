@@ -17,6 +17,7 @@
 		"skip": ["browser.ts"],
 		"command": ["npx", "ava", "--tap", "--timeout=60s"],
 		"rerun": ["npx", "ava", "--tap", "--timeout=60s", "{file}", "--match", "{name}"],
-		"titleSeparator": " › "
+		"titleSeparator": " › ",
+		"declaration": "^\\s*test(?:\\.serial)?\\((?<quote>['\"`])(?<title>(?:\\\\.|(?!\\k<quote>)[^\\\\])*)\\k<quote>"
 	}
 }
