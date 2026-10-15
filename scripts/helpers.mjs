@@ -44,9 +44,10 @@ export const parseTap = output => {
 // files: each test file with lost titles that passed in the baseline. pairs is the number of those lost titles
 // a new title in the same test file can stand for: a renamed test. A new title pairs with a lost title that
 // passed in the baseline before one that failed, so a rename alone never counts. failingNewTitles are the
-// failing tests under a new title; renamedRegressions counts those that fail every rerun, up to pairs. Which new title renames which
-// lost title is unknown, so the pairing works on counts. A test file whose only lost titles failed in the
-// baseline is not listed, so a renamed test that failed in the baseline never counts.
+// failing tests under a new title; renamedRegressions counts those that fail every rerun, up to pairs.
+// Which new title renames which lost title is unknown, so the pairing works on counts. A test file whose
+// only lost titles failed in the baseline is not listed, so a renamed test that failed in the baseline
+// never counts.
 export const regressionCandidates = (baselineTests, runTests, separator) => {
 	const fileOf = title => title.split(separator)[0];
 	const rerun = Object.entries(baselineTests)
@@ -70,9 +71,10 @@ export const regressionCandidates = (baselineTests, runTests, separator) => {
 };
 
 // Titles the scoring script reruns in one test file beyond the pairs, for lost titles and for failing new
-// titles alike. A rerun of a test that hangs takes the 60-second timeout of the rerun command, so the slow
-// case costs at most this many timeouts per test file beyond the pairs. Five reruns that all fail beyond the
-// pairs show a test file whose tests are gone or broken.
+// titles alike. A rerun of a test that hangs takes the 60-second timeout of the rerun command. A lost title
+// gets one rerun and a failing new title gets rerunCount reruns, so the slow case costs at most this many
+// timeouts per test file beyond the pairs for lost titles, and rerunCount times as many for new titles.
+// Five reruns that all fail beyond the pairs show a test file whose tests are gone or broken.
 export const extraRerunLimit = 5;
 
 // Renamed tests that count as regressions: failing new titles for which `failsEveryRerun(title)` holds, up
