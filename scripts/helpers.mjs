@@ -207,24 +207,46 @@ export const shellCommandNames = commandLine => {
 	return names;
 };
 
+// The events of an agent's transcript (newline-delimited JSON). A line that is not JSON is skipped.
+export const transcriptEvents = text => text.split('\n').flatMap(line => {
+	if (!line.trim()) {
+		return [];
+	}
+
+	try {
+		return [JSON.parse(line)];
+	} catch {
+		return [];
+	}
+});
+
+// Every tool call in a transcript, in order, with the text of its result and whether the result is an error.
+// A call with no result event has a result of undefined.
+export const toolCalls = text => {
+	const events = transcriptEvents(text);
+	const results = new Map();
+	for (const event of events.filter(item => item.type === 'user')) {
+		for (const block of Array.isArray(event.message?.content) ? event.message.content : []) {
+			if (block.type === 'tool_result') {
+				const content = Array.isArray(block.content) ? block.content.map(part => part.text ?? '').join('\n') : String(block.content ?? '');
+				results.set(block.tool_use_id, {result: content, isError: Boolean(block.is_error)});
+			}
+		}
+	}
+
+	return events
+		.filter(event => event.type === 'assistant')
+		.flatMap(event => (event.message?.content ?? []).filter(block => block.type === 'tool_use'))
+		.map(block => ({name: block.name, input: block.input ?? {}, result: undefined, isError: false, ...results.get(block.id)}));
+};
+
 // Summary of the agent's transcript (newline-delimited JSON events): final reply, cost, turns, and
 // the tools it used. Each sub-command of a shell command counts as its own tool use, labeled Bash:<name>.
 // A transcript with no result event ended early, so it counts as an error.
 export const summarizeTranscript = text => {
 	const toolCounts = {};
 	let result;
-	for (const line of text.split('\n')) {
-		if (!line.trim()) {
-			continue;
-		}
-
-		let event;
-		try {
-			event = JSON.parse(line);
-		} catch {
-			continue;
-		}
-
+	for (const event of transcriptEvents(text)) {
 		if (event.type === 'assistant') {
 			for (const block of event.message?.content ?? []) {
 				if (block.type === 'tool_use') {
