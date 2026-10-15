@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadCodebase, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -528,6 +528,39 @@ test('successScore counts successes over runs with the Wilson interval, and give
 	assert.equal(score.score, 0.75);
 	assert.deepEqual(score.interval, wilson(3, 4));
 	assert.equal(successScore([]), null);
+});
+
+test('successScore leaves out runs with unknown success, and gives null when every run is unknown', () => {
+	const score = successScore([{success: true}, {success: null}, {success: false}]);
+	assert.equal(score.successes, 1);
+	assert.equal(score.runs, 2);
+	assert.equal(successScore([{success: null}]), null);
+});
+
+test('agentSummaryRow shows the runs, the success count, and the means of a cell', () => {
+	const runs = [{success: true, wrongEdits: false, findRate: 1, missed: 0, wallSeconds: 10, costUsd: 0.5, searchCalls: 2}, {success: false, wrongEdits: null, findRate: 0.5, missed: 2, wallSeconds: 20, costUsd: 1.5, searchCalls: 4}];
+	assert.equal(agentSummaryRow('rename', 'published', runs, '0.500'), '| rename | published | 2 | 1/2 | 9% to 91% | 0.500 | 0/1 | 0.75 | 1.0 | 15 | 1.00 | 3.0 |');
+});
+
+test('agentSummaryRow keeps a cell whose every run has unknown success, with n/a for the success and the interval', () => {
+	const runs = [{success: null, wrongEdits: true, findRate: 1, missed: 0, wallSeconds: 10, costUsd: 1, searchCalls: 2}];
+	assert.equal(agentSummaryRow('rename', 'proposed', runs, ''), '| rename | proposed | 1 | n/a | n/a |  | 1/1 | 1.00 | 0.0 | 10 | 1.00 | 2.0 |');
+});
+
+const scoredEdit = {typecheck: true, testRegressions: 0, missed: 0, testFilesStoppedPartway: ''};
+
+test('editSuccess is true when the type check passes and nothing regressed, was missed, or failed the hidden test', () => {
+	assert.equal(editSuccess(scoredEdit), true);
+	assert.equal(editSuccess({...scoredEdit, hiddenTestPassed: true}), true);
+	assert.equal(editSuccess({...scoredEdit, hiddenTestPassed: false}), false);
+	assert.equal(editSuccess({...scoredEdit, typecheck: false}), false);
+	assert.equal(editSuccess({...scoredEdit, testRegressions: 1}), false);
+	assert.equal(editSuccess({...scoredEdit, missed: 1}), false);
+});
+
+test('editSuccess is unknown for a run with a test file that stopped partway, whatever else it scored', () => {
+	assert.equal(editSuccess({...scoredEdit, testFilesStoppedPartway: 'retry'}), null);
+	assert.equal(editSuccess({...scoredEdit, missed: 1, testFilesStoppedPartway: 'retry'}), null);
 });
 
 const adjudicationRows = [

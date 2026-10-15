@@ -56,6 +56,7 @@ const notes = [
 	truthStatement(search.truth),
 	...(agentRuns.length === 0 ? ['No agent runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.'] : []),
 	...(table.skippedRuns > 0 ? [`${table.skippedRuns} edit runs were scored without the type check, the tests, or the hidden test (--skip-tests), and count as successes when they missed no line.`] : []),
+	...(table.unknownRuns > 0 ? [`${table.unknownRuns} edit runs had a test file that stopped partway during scoring, so their success is unknown. This script leaves them out of the agent scores; rescore them.`] : []),
 ];
 const markdown = [
 	'# Results',

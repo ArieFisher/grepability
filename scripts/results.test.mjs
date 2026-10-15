@@ -59,6 +59,14 @@ test('resultsTable counts the runs scored without the type check and the tests',
 	assert.equal(resultsTable({concepts, tasks, searchResults, agentRuns, versionNames}).skippedRuns, 0);
 });
 
+test('resultsTable counts the runs with unknown success and leaves them out of the agent score', () => {
+	const unknown = [...agentRuns, run('published', 'edit', null)];
+	const table = resultsTable({concepts, tasks, searchResults, agentRuns: unknown, versionNames});
+	assert.equal(table.unknownRuns, 1);
+	assert.equal(table.rows[0].byVersion.published.agent.runs, 2);
+	assert.equal(resultsTable({concepts, tasks, searchResults, agentRuns, versionNames}).unknownRuns, 0);
+});
+
 test('resultsTable gives each concept its search score and agent score per version', () => {
 	const table = resultsTable({concepts, tasks, searchResults, agentRuns, versionNames});
 	const count = table.rows.find(row => row.concept === 'count');
