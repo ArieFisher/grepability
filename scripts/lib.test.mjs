@@ -5,8 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, extraRerunLimit, judgeLostTitles, readWrongEdits, regressionCandidates, renamedRegressions, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
-import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
+import {blindSheetRows, changedOriginalLines, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadCodebase, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
 
@@ -252,84 +252,158 @@ test('shuffle returns a permutation and leaves the input alone', () => {
 	assert.deepEqual([...output].sort(), input);
 });
 
+const testsConfig = loadCodebase().tests;
+// One file of a diff with zero context lines: a single hunk holding the given removed and added lines.
+const hunk = (file, lines) => {
+	const count = sign => lines.filter(line => line.startsWith(sign)).length;
+	return [`diff --git a/${file} b/${file}`, `--- a/${file}`, `+++ b/${file}`, `@@ -1,${count('-')} +1,${count('+')} @@`, ...lines].join('\n');
+};
+
+test('renamedTitles maps the new title of a renamed declaration to its old title', () => {
+	const diff = hunk('test/retry.ts', ["-test('retryCount is 1', async t => {", "+test('retryNumber is 1', async t => {"]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › retryNumber is 1', 'retry › retryCount is 1']]));
+});
+
+test('renamedTitles pairs removed and added declarations in order within one hunk', () => {
+	const diff = hunk('test/hooks.ts', [
+		"-test('a retryCount', async t => {",
+		'-	const retryCount = 1;',
+		"-test.serial(\"b retryCount\", t => {",
+		"+test('a retryNumber', async t => {",
+		'+	const retryNumber = 1;',
+		"+test.serial(\"b retryNumber\", t => {",
+	]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['hooks › a retryNumber', 'hooks › a retryCount'], ['hooks › b retryNumber', 'hooks › b retryCount']]));
+});
+
+test('renamedTitles skips a hunk whose removed and added declaration counts differ', () => {
+	const diff = hunk('test/retry.ts', ["-test('gone', t => {", "-test('also gone', t => {", "+test('added', t => {"]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
+test('renamedTitles pairs declarations only within the same hunk', () => {
+	const diff = [hunk('test/retry.ts', ["-test('gone', t => {"]), '@@ -20,0 +20,1 @@', "+test('added', t => {"].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
+test('renamedTitles ignores files outside the test directory, with another extension, or skipped', () => {
+	const lines = ["-test('old', t => {", "+test('new', t => {"];
+	const diff = [hunk('source/retry.ts', lines), hunk('test/retry.js', lines), hunk('test/browser.ts', lines)].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
+test('renamedTitles reads backtick and escaped titles and skips a title with a template expression', () => {
+	const diff = hunk('test/retry.ts', [
+		"-test(`plain retryCount`, t => {",
+		"-test('don\\'t retryCount', t => {",
+		'-	test(`${name} retryCount`, t => {',
+		"+test(`plain retryNumber`, t => {",
+		"+test('don\\'t retryNumber', t => {",
+		'+	test(`${name} retryNumber`, t => {',
+	]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › plain retryNumber', 'retry › plain retryCount'], ["retry › don't retryNumber", "retry › don't retryCount"]]));
+});
+
+test('renamedTitles reads a removed line that starts with dashes as a removed line, not a file header', () => {
+	const diff = hunk('test/retry.ts', ['--- a/test/other.ts', "-test('old', t => {", "+test('new', t => {"]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › new', 'retry › old']]));
+});
+
+test('renamedTitles maps nothing when a declaration keeps its title', () => {
+	const diff = hunk('test/retry.ts', ["-test('same', async t => {", "+test('same', t => {"]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
+test('renamedTitles reads the whole hunk when it holds no-newline markers', () => {
+	const marker = '\\ No newline at end of file';
+	const diff = hunk('test/retry.ts', ["-test('a', t => {", "-test('b', t => {", marker, "+test('c', t => {", "+test('d', t => {", marker]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › c', 'retry › a'], ['retry › d', 'retry › b']]));
+});
+
+test('renamedTitles uses the old path for removed declarations and the new path for added ones', () => {
+	const diff = ['diff --git a/test/old.ts b/test/new.ts', 'similarity index 90%', 'rename from test/old.ts', 'rename to test/new.ts', '--- a/test/old.ts', '+++ b/test/new.ts', '@@ -1 +1 @@', "-test('x', t => {", "+test('y', t => {"].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['new › y', 'old › x']]));
+});
+
+test('renamedTitles pairs nothing in a new or a deleted test file', () => {
+	const diff = [
+		'diff --git a/test/added.ts b/test/added.ts', 'new file mode 100644', '--- /dev/null', '+++ b/test/added.ts', '@@ -0,0 +1 @@', "+test('x', t => {",
+		'diff --git a/test/gone.ts b/test/gone.ts', 'deleted file mode 100644', '--- a/test/gone.ts', '+++ /dev/null', '@@ -1 +0,0 @@', "-test('y', t => {",
+	].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
+test('renamedTitles reads a path that git ends with a tab', () => {
+	const diff = ['diff --git a/test/my file.ts b/test/my file.ts', '--- a/test/my file.ts\t', '+++ b/test/my file.ts\t', '@@ -1 +1 @@', "-test('x', t => {", "+test('y', t => {"].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['my file › y', 'my file › x']]));
+});
+
+test('renamedTitles throws on a file header it cannot read, such as a quoted path', () => {
+	const diff = [hunk('test/a.ts', ["-test('p', t => {", "+test('q', t => {"]), 'diff --git "a/test/\\303\\251.ts" "b/test/\\303\\251.ts"', '--- "a/test/\\303\\251.ts"', '+++ "b/test/\\303\\251.ts"', '@@ -1 +1 @@', "-test('r', t => {", "+test('s', t => {"].join('\n');
+	assert.throws(() => renamedTitles(diff, testsConfig), /cannot read the file header/);
+});
+
+test('renamedTitles skips a quoted path outside the test directory', () => {
+	const diff = ['diff --git "a/source/\\303\\251.ts" "b/source/\\303\\251.ts"', '--- "a/source/\\303\\251.ts"', '+++ "b/source/\\303\\251.ts"', '@@ -1 +1 @@', '-const a = 1;', '+const b = 1;', hunk('test/a.ts', ["-test('p', t => {", "+test('q', t => {"])].join('\n');
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['a › q', 'a › p']]));
+});
+
+test('renamedTitles skips a title with an escape other than a quote or a backslash', () => {
+	const diff = hunk('test/retry.ts', ["-test('line\\nbreak', t => {", "+test('line\\nbreaks', t => {"]);
+	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+});
+
 test('regressionCandidates reruns a baseline-passing test that fails and lists the lost titles of its test file', () => {
 	const baseline = {'a › passes': true, 'a › fails': true, 'a › vanishes': true, 'a › was failing': false};
 	const run = {'a › passes': true, 'a › fails': false, 'a › was failing': false};
-	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: ['a › fails'], files: [{file: 'a', lostTitles: ['a › vanishes'], pairs: 0, failingNewTitles: []}]});
+	assert.deepEqual(regressionCandidates(baseline, run, new Map(), ' › '), {rerun: ['a › fails'], files: [{file: 'a', lostTitles: ['a › vanishes']}]});
 });
 
 test('regressionCandidates skips a failing test that the baseline lacks', () => {
-	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}, ' › '), {rerun: [], files: []});
+	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}, new Map(), ' › '), {rerun: [], files: []});
 });
 
-test('regressionCandidates pairs a renamed test with its lost title', () => {
+test('regressionCandidates judges a renamed test by its result under the new title', () => {
+	const renames = new Map([['a › retryNumber is 1', 'a › retryCount is 1']]);
 	const baseline = {'a › retryCount is 1': true, 'a › other': true};
-	const run = {'a › retryNumber is 1': false, 'a › other': true};
-	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › retryCount is 1'], pairs: 1, failingNewTitles: ['a › retryNumber is 1']}]});
+	assert.deepEqual(regressionCandidates(baseline, {'a › retryNumber is 1': false, 'a › other': true}, renames, ' › '), {rerun: ['a › retryNumber is 1'], files: []});
+	assert.deepEqual(regressionCandidates(baseline, {'a › retryNumber is 1': true, 'a › other': true}, renames, ' › '), {rerun: [], files: []});
 });
 
 test('regressionCandidates ignores a renamed test that failed in the baseline and still fails', () => {
-	assert.deepEqual(regressionCandidates({'a › was failing': false}, {'a › renamed': false}, ' › '), {rerun: [], files: []});
+	assert.deepEqual(regressionCandidates({'a › was failing': false}, {'a › renamed': false}, new Map([['a › renamed', 'a › was failing']]), ' › '), {rerun: [], files: []});
 });
 
-test('regressionCandidates pairs new titles with lost titles that passed in the baseline first', () => {
-	const baseline = {'a › was failing': false, 'a › passes': true};
-	assert.deepEqual(regressionCandidates(baseline, {'a › renamed': true}, ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › passes'], pairs: 1, failingNewTitles: []}]});
+test('regressionCandidates lists the lost title of a renamed test under its new title', () => {
+	assert.deepEqual(regressionCandidates({'a › old': true}, {}, new Map([['a › new', 'a › old']]), ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › new']}]});
 });
 
-test('regressionCandidates pairs new titles with lost titles only within the same test file', () => {
-	const baseline = {'a › lost': true, 'b › kept': true};
-	const run = {'b › kept': true, 'b › added': true};
-	assert.deepEqual(regressionCandidates(baseline, run, ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › lost'], pairs: 0, failingNewTitles: []}]});
+test('regressionCandidates counts a new title with no rename as a lost title plus a new test', () => {
+	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › new': true}, new Map(), ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › old']}]});
 });
 
 test('regressionCandidates groups by the text before the first separator and handles a title named __proto__', () => {
 	const baseline = {'a › b › c': true, 'a › __proto__': true};
-	assert.deepEqual(regressionCandidates(baseline, {}, ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › b › c', 'a › __proto__'], pairs: 0, failingNewTitles: []}]});
+	assert.deepEqual(regressionCandidates(baseline, {}, new Map(), ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › b › c', 'a › __proto__']}]});
 });
 
-test('renamedRegressions keeps failing new titles that fail every rerun, up to the number of pairs', () => {
-	assert.deepEqual(renamedRegressions(['a › x', 'a › y'], 1, () => true), ['a › x']);
-	assert.deepEqual(renamedRegressions(['a › x', 'a › y'], 3, title => title === 'a › y'), ['a › y']);
-	assert.deepEqual(renamedRegressions(['a › x'], 0, () => assert.fail('no rerun expected')), []);
+test('judgeLostTitles marks a test file that stopped partway and counts the failed reruns before the pass as removed', () => {
+	const results = [false, false, true];
+	assert.deepEqual(judgeLostTitles(['a › gone', 'a › gone too', 'a › present', 'a › other'], () => results.shift()), {removed: 2, stoppedPartway: true});
 });
 
-test('renamedRegressions stops after the pairs plus the extra rerun limit of new titles', () => {
-	const titles = Array.from({length: 40}, (_, i) => `a › t${i}`);
-	let reruns = 0;
-	assert.deepEqual(renamedRegressions(titles, 1, () => {
-		reruns++;
-		return false;
-	}), []);
-	assert.equal(reruns, 1 + extraRerunLimit);
+test('judgeLostTitles counts every lost title as removed when all reruns fail', () => {
+	assert.deepEqual(judgeLostTitles(['a › x', 'a › y', 'a › z'], () => false), {removed: 3, stoppedPartway: false});
 });
 
-test('judgeLostTitles finds nothing to judge when every lost title has a pair', () => {
-	assert.deepEqual(judgeLostTitles(['a › x'], 1, () => assert.fail('no rerun expected')), {removed: 0, stoppedPartway: false});
-});
-
-test('judgeLostTitles marks a test file that stopped partway when a lost title passes its rerun', () => {
-	const results = [false, true];
-	assert.deepEqual(judgeLostTitles(['a › renamed', 'a › present', 'a › other'], 1, () => results.shift()), {removed: 0, stoppedPartway: true});
-});
-
-test('judgeLostTitles counts the failed reruns beyond the pairs before a test file that stopped partway', () => {
-	const results = [false, false, false, true];
-	assert.deepEqual(judgeLostTitles(['a › renamed', 'a › gone', 'a › gone too', 'a › present'], 1, () => results.shift()), {removed: 2, stoppedPartway: true});
-});
-
-test('judgeLostTitles counts every unpaired lost title as removed when all reruns fail', () => {
-	assert.deepEqual(judgeLostTitles(['a › x', 'a › y', 'a › z'], 1, () => false), {removed: 2, stoppedPartway: false});
-});
-
-test('judgeLostTitles stops after the pairs plus the extra rerun limit of failed reruns', () => {
+test('judgeLostTitles stops after the lost rerun limit of failed reruns', () => {
 	const lost = Array.from({length: 100}, (_, i) => `a › t${i}`);
 	let reruns = 0;
-	assert.deepEqual(judgeLostTitles(lost, 2, () => {
+	assert.deepEqual(judgeLostTitles(lost, () => {
 		reruns++;
 		return false;
-	}), {removed: 98, stoppedPartway: false});
-	assert.equal(reruns, 2 + extraRerunLimit);
+	}), {removed: 100, stoppedPartway: false});
+	assert.equal(reruns, lostRerunLimit);
 });
 
 test('blindSheetRows keeps the rows already on the sheet and appends only runs it lacks', () => {

@@ -1,5 +1,6 @@
 // Pure helpers with no TypeScript dependency: keys, shuffling, diff and reply parsing, statistics, CSV.
 import crypto from 'node:crypto';
+import path from 'node:path';
 
 export const key = (file, line) => `${file}:${line}`;
 
@@ -39,79 +40,126 @@ export const parseTap = output => {
 	return tests;
 };
 
-// Tests that may be regressions, matched by test title within each test file (the title up to the first separator).
-// rerun: tests that passed in the baseline and fail in the run; each needs a rerun to rule out flakiness.
-// files: each test file with lost titles that passed in the baseline. pairs is the number of those lost titles
-// a new title in the same test file can stand for: a renamed test. A new title pairs with a lost title that
-// passed in the baseline before one that failed, so a rename alone never counts. failingNewTitles are the
-// failing tests under a new title; renamedRegressions counts those that fail every rerun, up to pairs.
-// Which new title renames which lost title is unknown, so the pairing works on counts. A test file whose
-// only lost titles failed in the baseline is not listed, so a renamed test that failed in the baseline
-// never counts.
-export const regressionCandidates = (baselineTests, runTests, separator) => {
+// Renamed tests read from a run's diff, as a map from new test title to old test title. The diff must have zero
+// context lines, so each hunk holds only changed lines. In each hunk of a test file, the test declarations it
+// removes pair in order with the test declarations it adds, when the two counts are equal; a pair whose titles
+// match is no rename. `tests` is the tests section of the codebase configuration: its declaration pattern
+// captures the title a test declaration declares. A title holding a template expression is skipped, because the
+// test command prints the expression's value, and so is a title holding an escape other than a quote or a
+// backslash. A file header with a quoted path under the test directory throws, because the script reads no quoted path.
+export const renamedTitles = (diff, tests) => {
+	const declaration = new RegExp(tests.declaration);
+	const testFilePrefix = file => {
+		const relative = path.posix.relative(tests.directory, file);
+		const isTestFile = !relative.startsWith('..') && relative.endsWith(tests.extension) && !tests.skip.includes(relative);
+		return isTestFile ? relative.slice(0, -tests.extension.length).split('/').join(tests.titleSeparator) : undefined;
+	};
+
+	const headerPrefix = line => {
+		const value = line.slice(4).replace(/\t$/, '');
+		if (value === '/dev/null') {
+			return undefined;
+		}
+
+		const file = /^[ab]\/(.+)$/.exec(value)?.[1];
+		if (file !== undefined) {
+			return testFilePrefix(file);
+		}
+
+		// Git quotes a path that holds an unusual character. One outside the test directory holds no test.
+		const isTestPath = /^"[ab]\/(.+)"$/.exec(value)?.[1].startsWith(`${tests.directory}/`) ?? true;
+		if (isTestPath) {
+			throw new Error(`renamedTitles cannot read the file header "${line}".`);
+		}
+
+		return undefined;
+	};
+
+	const titleOf = (prefix, line) => {
+		const title = declaration.exec(line.slice(1))?.groups.title;
+		const isReadable = title !== undefined && !title.includes('${') && !/\\[^'"`\\]/.test(title);
+		return isReadable ? `${prefix}${tests.titleSeparator}${title.replaceAll(/\\(.)/g, '$1')}` : undefined;
+	};
+
+	const renames = new Map();
+	const pairHunk = (oldPrefix, newPrefix, lines) => {
+		const removed = oldPrefix === undefined ? [] : lines.filter(line => line.startsWith('-')).map(line => titleOf(oldPrefix, line)).filter(Boolean);
+		const added = newPrefix === undefined ? [] : lines.filter(line => line.startsWith('+')).map(line => titleOf(newPrefix, line)).filter(Boolean);
+		if (removed.length === added.length) {
+			for (const [index, title] of added.entries()) {
+				if (title !== removed[index]) {
+					renames.set(title, removed[index]);
+				}
+			}
+		}
+	};
+
+	const lines = diff.split('\n');
+	let oldPrefix;
+	let newPrefix;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index];
+		if (line.startsWith('diff --git ')) {
+			[oldPrefix, newPrefix] = [undefined, undefined];
+		} else if (line.startsWith('--- ')) {
+			oldPrefix = headerPrefix(line);
+		} else if (line.startsWith('+++ ')) {
+			newPrefix = headerPrefix(line);
+		}
+
+		const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+		if (hunk) {
+			// The body ends when its removed and added lines reach the hunk's counts; a no-newline marker counts as neither.
+			let [removedLeft, addedLeft] = [Number(hunk[1] ?? 1), Number(hunk[2] ?? 1)];
+			const body = [];
+			while ((removedLeft > 0 || addedLeft > 0) && index + 1 < lines.length) {
+				const bodyLine = lines[++index];
+				removedLeft -= bodyLine.startsWith('-') ? 1 : 0;
+				addedLeft -= bodyLine.startsWith('+') ? 1 : 0;
+				body.push(bodyLine);
+			}
+
+			pairHunk(oldPrefix, newPrefix, body);
+		}
+	}
+
+	return renames;
+};
+
+// Tests that may be regressions, matched by test title within each test file (the title up to the first
+// separator). `renames` maps a renamed test's new title to its old title, so a renamed test is judged by its
+// own result. rerun: run titles of tests that passed in the baseline and fail in the run; each needs a rerun to
+// rule out flakiness. files: each test file with baseline-passing tests the run's results lack, as lostTitles
+// under their run title, so a rerun finds a renamed test under its new title.
+export const regressionCandidates = (baselineTests, runTests, renames, separator) => {
 	const fileOf = title => title.split(separator)[0];
-	const rerun = Object.entries(baselineTests)
-		.filter(([title, passed]) => passed && Object.hasOwn(runTests, title) && runTests[title] !== true)
-		.map(([title]) => title);
-	const lostPassing = Object.entries(baselineTests)
-		.filter(([title, passed]) => passed && !Object.hasOwn(runTests, title))
-		.map(([title]) => title);
-	const gained = Object.keys(runTests).filter(title => !Object.hasOwn(baselineTests, title));
-	const files = [...new Set(lostPassing.map(fileOf))].map(file => {
-		const lostTitles = lostPassing.filter(title => fileOf(title) === file);
-		const gainedHere = gained.filter(title => fileOf(title) === file);
-		return {
-			file,
-			lostTitles,
-			pairs: Math.min(lostTitles.length, gainedHere.length),
-			failingNewTitles: gainedHere.filter(title => runTests[title] !== true),
-		};
-	});
+	const newTitles = new Map([...renames].map(([newTitle, oldTitle]) => [oldTitle, newTitle]));
+	const runTitleOf = title => newTitles.get(title) ?? title;
+	const passing = Object.entries(baselineTests).filter(([, passed]) => passed).map(([title]) => runTitleOf(title));
+	const rerun = passing.filter(title => Object.hasOwn(runTests, title) && runTests[title] !== true);
+	const lost = passing.filter(title => !Object.hasOwn(runTests, title));
+	const files = [...new Set(lost.map(fileOf))].map(file => ({file, lostTitles: lost.filter(title => fileOf(title) === file)}));
 	return {rerun, files};
 };
 
-// Titles the scoring script reruns in one test file beyond the pairs, for lost titles and for failing new
-// titles alike. A rerun of a test that hangs takes the 60-second timeout of the rerun command. A lost title
-// gets one rerun and a failing new title gets rerunCount reruns, so the slow case costs at most this many
-// timeouts per test file beyond the pairs for lost titles, and rerunCount times as many for new titles.
-// Five reruns that all fail beyond the pairs show a test file whose tests are gone or broken.
-export const extraRerunLimit = 5;
-
-// Renamed tests that count as regressions: failing new titles for which `failsEveryRerun(title)` holds, up
-// to the number of pairs in their test file. It reruns titles in order and stops when pairs titles are
-// confirmed, or after pairs plus extraRerunLimit titles.
-export const renamedRegressions = (failingNewTitles, pairs, failsEveryRerun) => {
-	const confirmed = [];
-	for (const title of failingNewTitles.slice(0, pairs + extraRerunLimit)) {
-		if (confirmed.length === pairs) {
-			break;
-		}
-
-		if (failsEveryRerun(title)) {
-			confirmed.push(title);
-		}
-	}
-
-	return confirmed;
-};
+// Lost titles the scoring script reruns in one test file. A rerun of a test that hangs takes the 60-second
+// timeout of the rerun command, so a test file costs at most this many timeouts. Five reruns that all fail show
+// a test file whose tests are gone.
+export const lostRerunLimit = 5;
 
 // Judges the lost titles of one test file, rerunning each once in order with `passesRerun(title)`. A pass
-// means the test still exists and its test file stopped partway in the run; the failed reruns before it,
-// beyond the pairs, count as removed tests. When pairs plus extraRerunLimit reruns have failed, or every lost
-// title has failed, every lost title beyond the pairs counts as a removed test.
-export const judgeLostTitles = (lostTitles, pairs, passesRerun) => {
-	if (lostTitles.length <= pairs) {
-		return {removed: 0, stoppedPartway: false};
-	}
-
-	const limit = Math.min(lostTitles.length, pairs + extraRerunLimit);
+// means the test still exists and its test file stopped partway in the run; the failed reruns before it count
+// as removed tests. When lostRerunLimit reruns have failed, or every lost title has failed, every lost title
+// counts as a removed test.
+export const judgeLostTitles = (lostTitles, passesRerun) => {
+	const limit = Math.min(lostTitles.length, lostRerunLimit);
 	for (let failures = 0; failures < limit; failures++) {
 		if (passesRerun(lostTitles[failures])) {
-			return {removed: Math.max(0, failures - pairs), stoppedPartway: true};
+			return {removed: failures, stoppedPartway: true};
 		}
 	}
 
-	return {removed: lostTitles.length - pairs, stoppedPartway: false};
+	return {removed: lostTitles.length, stoppedPartway: false};
 };
 
 // The first word of every sub-command in a shell command line. A sub-command ends at &&, ||, ;, |, &, or a
