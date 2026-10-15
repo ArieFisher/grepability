@@ -75,5 +75,10 @@ export const resultsTable = ({concepts, tasks, searchResults, agentRuns, version
 		const byVersion = Object.fromEntries(versionNames.map(version => [version, conceptCell(concept, version, searchResults, runs)]));
 		return {concept: concept.id, name: concept.name, control: Boolean(concept.control), byVersion, change: changes(byVersion, versionNames)};
 	});
-	return {rows, overall: overallRow(rows, runs, versionNames), skippedRuns: runs.filter(run => run.testsRun === false).length};
+	return {
+		rows,
+		overall: overallRow(rows, runs, versionNames),
+		skippedRuns: runs.filter(run => run.testsRun === false).length,
+		unknownRuns: runs.filter(run => run.success === null).length,
+	};
 };

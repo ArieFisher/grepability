@@ -10,7 +10,7 @@
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
-import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedTitles, rerunTest, runChecked, runMeasures, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, editSuccess, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedTitles, rerunTest, runChecked, runMeasures, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -148,7 +148,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 				row.hiddenTestPassed = hidden.length > 0 && hidden.every(([, passed]) => passed);
 			}
 
-			row.success = row.typecheck && row.testRegressions === 0 && row.missed === 0 && (row.hiddenTestPassed ?? true);
+			row.success = editSuccess(row);
 		} else {
 			row.success = row.missed === 0;
 		}
