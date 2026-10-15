@@ -19,9 +19,9 @@ How does it know what is relevant? It 'greps' the codebase (does a text pattern 
 
 Unfortunately, **AI coders don't write grep-friendly code**.  The  left hand (the LLM that *creates* code) is not designed to work with the right hand (the agentic harness that *finds* code) (\!)
 
-So if you opened the code, you will find the same concept being called differently in different parts of the code, comments, and documentation (e.g. `rate`, `interest`, `APR`, `juice`, `vig`, `x`, 'calculate\_prime(), ...)
+If you opened the code, you would find the same concepts being called by different names all over the code, comments, and documentation (e.g. `rate`, `interest`, `APR`, `juice`, `vig`, `x`, `calculate_prime(intrst)`, ...)
 
-Even if you never open your code, this is a big problem for you.  You may have noticed it manifest in the **agentic coder becoming less effective** over time: changes taking longer (even simple ones), becoming more expensive, and less reliable, documentation drifting, comments that (while once correct) now actively mislead, ...
+Even if you are a person who has and would never open your code, this is a big problem for you.  You may have noticed it manifestingå in the **agentic coder becoming less effective** over time: changes taking longer (even simple ones), becoming more expensive, and less reliable, documentation drifting, comments that (while once correct) now actively mislead, ...
 
 ## testing the hypothesis
 
@@ -33,7 +33,7 @@ Narratively, it makes sense.  But can we test it?
 
 1. **Find something to test**: Choose a published codebase (a small, well-regarded utility) where the same concept(s) are represented differently (in words, variables, function names, etc): [KY: Delightful HTTP Requests \- a tiny and elegant HTTP client](https://github.com/sindresorhus/ky)  
      
-2. **Create ground truth**: Edit a copy of the codebase so that same concepts only carry a single name. In this way a simple text search (`grep`) now finds the field, the parameter, and comment.  The edits were made such that they did not change behavior, or line number.  
+2. **Create ground truth**: Edit a copy of the codebase so that same concepts only carry a single name. In this way a simple text search (`grep`) now finds the field, the parameter, and comment.  The edits were made such that they did not change behaviour or line number.  
      
 3. **Design a measure** for grepability  
      
@@ -68,8 +68,8 @@ Narratively, it makes sense.  But can we test it?
 
 **Task 2: Refactor**
 
-- Prompt the agent to rename a concept (in this experiment `retry count` to `retry number`) everywhere: code, public types, hook state, and even prose comment.  
-- Success judged not only on *how many* of the changes were made, but also that the code works, it exhibits no behaviour changes, and all 1,500+ of the library’s own verification tests still pass.
+- Prompt the agent to rename a concept (in this experiment `retry count` to `retry number`) everywhere: code, public types, hook state, and even prose comments.  
+- Success is judged not only on *how many* of the changes were made, but also that the code works, it exhibits no behaviour changes, and all 1,500+ of the library’s own verification tests still pass.
 
 **Task 3: Breaking change**
 
