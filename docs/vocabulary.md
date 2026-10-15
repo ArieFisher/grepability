@@ -76,8 +76,8 @@ One term per concept, used in every document, comment, test name, commit message
 | test title | The name the test command prints for one test: the test file name, the title separator in the codebase configuration, then the name the test itself declares. Baselines and run results record each test under its test title. | test name, test label, test id |
 | lost title | A test title that the baseline holds and a run's results lack. A lost title belongs to a renamed test, a removed test, or a test file that stopped partway in the run. | missing test, vanished test, dropped title |
 | new title | A test title that a run's results hold and the baseline lacks. | added title, extra test, unknown test |
-| renamed test | A test whose test title a run changed. The scoring script pairs each new title with a lost title in the same test file, and judges the renamed test by the result under its new title. | retitled test, moved test |
-| removed test | A lost title with no new title to pair with, that fails its one rerun. It counts as a regression. | deleted test, dropped test |
+| renamed test | A test whose test title a run changed. The scoring script pairs new titles with lost titles in the same test file by count, lost titles that passed in the baseline first, and counts a failing test under a new title as a regression up to the number of pairs. Pairing by count cannot tell a renamed test from a removed test plus a new one. | retitled test, moved test |
+| removed test | A lost title beyond the pairs in its test file. The scoring script reruns the test file's lost titles once each: a pass means the test file stopped partway, and the run records it; when the pairs plus five reruns fail, every lost title beyond the pairs counts as a removed test, and a regression. | deleted test, dropped test |
 | flaky | A test that both passes and fails across reruns of the same run copy. Flaky tests count as neither regressions nor differences. | unstable, nondeterministic, intermittent |
 
 ## Scores
