@@ -146,6 +146,31 @@ test('rerunTest throws when the rerun command cannot start', () => {
 	assert.throws(() => rerunTest(os.tmpdir(), 'a › b', 1, tests), /no-such-command-for-this-test/);
 });
 
+// A rerun command that prints fixed TAP lines, as a runner prints them when it executes one test file, with no
+// file in the titles. The runner matches names in any letter case, so one rerun can execute two tests.
+const fixedTapRerun = (lines, status) => ({
+	directory: 'test',
+	extension: '.ts',
+	titleSeparator: ' › ',
+	rerun: ['node', '-e', `console.log(${JSON.stringify(lines.join('\n'))}); process.exit(${status})`, '{file}', '{name}'],
+});
+
+test('rerunTest counts a pass for a test that passes when a test whose name differs only in letter case fails', () => {
+	const tests = fixedTapRerun(['ok 1 - Retry works', 'not ok 2 - retry works'], 1);
+	assert.equal(rerunTest(os.tmpdir(), 'a › Retry works', 2, tests), 2);
+	assert.equal(rerunTest(os.tmpdir(), 'a › retry works', 2, tests), 0);
+});
+
+test('rerunTest counts no pass for a missing test when a test whose name differs only in letter case passes', () => {
+	const tests = fixedTapRerun(['ok 1 - Retry works'], 0);
+	assert.equal(rerunTest(os.tmpdir(), 'a › retry works', 2, tests), 0);
+});
+
+test('rerunTest reads a name holding a * as printed, and counts no pass for a skipped test', () => {
+	assert.equal(rerunTest(os.tmpdir(), 'a › x * y', 1, fixedTapRerun(['ok 1 - x * y'], 0)), 1);
+	assert.equal(rerunTest(os.tmpdir(), 'a › x', 1, fixedTapRerun(['ok 1 - x # SKIP'], 0)), 0);
+});
+
 test('createService throws when the tsconfig is missing or invalid', () => {
 	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'service-'));
 	try {

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
+import {parseTap} from './helpers.mjs';
 
 export * from './helpers.mjs';
 
@@ -269,17 +270,19 @@ export const rerunCount = 3;
 
 // Reruns one test a few times by its TAP title; returns how many runs passed. The codebase's rerun
 // command is a template: {file} is the test file the title starts with, {name} the rest of the title.
-// A `*` in the name is escaped so a runner that matches names as globs takes it literally.
+// A `*` in the name is escaped so a runner that matches names as globs takes it literally. A runner that
+// matches names in any letter case also executes a test whose name differs only in case, so a rerun counts as
+// passed only when parseTap reads the exact name as passing; a runner executing one test file prints names with no file.
 export const rerunTest = (root, title, times = rerunCount, tests = loadCodebase().tests) => {
 	const [file, ...nameParts] = title.split(tests.titleSeparator);
-	const name = nameParts.join(tests.titleSeparator).replaceAll('*', String.raw`\*`);
+	const name = nameParts.join(tests.titleSeparator);
 	const [command, ...args] = tests.rerun.map(part => part
 		.replaceAll('{file}', `${tests.directory}/${file}${tests.extension}`)
-		.replaceAll('{name}', name));
+		.replaceAll('{name}', name.replaceAll('*', String.raw`\*`)));
 	let passed = 0;
 	for (let i = 0; i < times; i++) {
 		const result = runChecked(command, args, {cwd: root});
-		if (result.status === 0 && /^ok \d+ /m.test(result.stdout)) {
+		if (parseTap(result.stdout)[name] === true) {
 			passed++;
 		}
 	}
