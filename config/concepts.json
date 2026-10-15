@@ -212,7 +212,104 @@
 					"name": "rateLimitResetAlias"
 				}
 			],
-			"lockedLines": []
+			"lockedLines": [
+				{
+					"file": "source/core/Ky.ts",
+					"line": 35,
+					"text": "'../utils/delay.js'",
+					"reason": "File path of the sleep helper's module."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 677,
+					"text": "retry.jitter",
+					"reason": "Public Ky option jitter."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 747,
+					"text": "retry.maxRetryAfter",
+					"reason": "Public Ky option maxRetryAfter."
+				},
+				{
+					"file": "source/types/options.ts",
+					"line": 521,
+					"text": "'jitter'",
+					"reason": "Public Ky option jitter."
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 58,
+					"text": "maxRetryAfter",
+					"reason": "Public Ky option maxRetryAfter."
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 75,
+					"text": "backoffLimit",
+					"reason": "Public Ky option backoffLimit."
+				},
+				{
+					"file": "source/types/retry.ts",
+					"line": 108,
+					"text": "jitter: true",
+					"reason": "Comment whose only concept wording is the public Ky option jitter."
+				},
+				{
+					"file": "source/utils/delay.ts",
+					"line": 1,
+					"text": "https://github.com/sindresorhus/delay",
+					"reason": "URL of the sindresorhus/delay repository."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 30,
+					"text": "maxRetryAfter",
+					"reason": "Public Ky option maxRetryAfter."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 31,
+					"text": "backoffLimit",
+					"reason": "Public Ky option backoffLimit."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 74,
+					"text": "['maxRetryAfter', 'backoffLimit']",
+					"reason": "Public Ky options maxRetryAfter and backoffLimit."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 76,
+					"text": "must be a non-negative number or",
+					"reason": "Error message the program outputs."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 82,
+					"text": "normalizedRetry[key]",
+					"reason": "No wording on the line."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 83,
+					"text": "must be a function",
+					"reason": "Error message the program outputs."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 87,
+					"text": "normalizedRetry.jitter",
+					"reason": "Public Ky option jitter."
+				},
+				{
+					"file": "source/utils/normalize.ts",
+					"line": 88,
+					"text": "must be a boolean or a function",
+					"reason": "Error message the program outputs."
+				}
+			]
 		},
 		{
 			"id": "progress-callback",
@@ -355,7 +452,122 @@
 					"name": "abortHandler"
 				}
 			],
-			"lockedLines": []
+			"lockedLines": [
+				{
+					"file": "source/core/Ky.ts",
+					"line": 439,
+					"text": "AbortController",
+					"reason": "Standard library name AbortController."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 515,
+					"text": "globalThis.AbortController",
+					"reason": "Standard library name AbortController."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 924,
+					"text": ".abort()",
+					"reason": "Standard library method abort()."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 937,
+					"text": ".abort()",
+					"reason": "Standard library method abort()."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 971,
+					"text": ".abort()",
+					"reason": "Standard library method abort()."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 994,
+					"text": ".abort()",
+					"reason": "Standard library method abort()."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1148,
+					"text": ".aborted",
+					"reason": "Standard library property aborted."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1149,
+					"text": "globalThis.AbortController",
+					"reason": "Standard library name AbortController."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1224,
+					"text": "abort controller",
+					"reason": "Comment whose only matched text names the standard library AbortController."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1255,
+					"text": ".abort()",
+					"reason": "Standard library method abort()."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1264,
+					"text": ".abort()",
+					"reason": "Standard library method abort()."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1343,
+					"text": "this.#options.signal",
+					"reason": "Public Ky option signal."
+				},
+				{
+					"file": "source/core/Ky.ts",
+					"line": 1348,
+					"text": "this.#options.signal",
+					"reason": "Public Ky option signal."
+				},
+				{
+					"file": "source/core/constants.ts",
+					"line": 33,
+					"text": "globalThis.AbortController",
+					"reason": "Standard library name AbortController."
+				},
+				{
+					"file": "source/core/constants.ts",
+					"line": 34,
+					"text": "globalThis.AbortSignal",
+					"reason": "Standard library name AbortSignal."
+				},
+				{
+					"file": "source/types/options.ts",
+					"line": 448,
+					"text": "'signal'",
+					"reason": "Standard library RequestInit property signal."
+				},
+				{
+					"file": "source/utils/is.ts",
+					"line": 12,
+					"text": "`AbortSignal`",
+					"reason": "Comment whose only matched text names the standard library AbortSignal."
+				},
+				{
+					"file": "source/utils/timeout.ts",
+					"line": 14,
+					"text": "AbortController",
+					"reason": "Standard library name AbortController."
+				},
+				{
+					"file": "source/utils/timeout.ts",
+					"line": 25,
+					"text": ".abort()",
+					"reason": "Standard library method abort()."
+				}
+			]
 		},
 		{
 			"id": "jitter",
