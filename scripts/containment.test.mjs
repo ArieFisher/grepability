@@ -1,5 +1,5 @@
 // Unit tests for containment.mjs and agent-runner.mjs: the launch arguments, settings, and environment
-// that keep agent runs and script commands inside the project folder. Run: node --test scripts/
+// that keep agent runs and script commands inside the project. Run: node --test scripts/
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
