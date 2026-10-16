@@ -43,7 +43,7 @@ One term per concept, used in every document, comment, test name, commit message
 | adjudicator | The person or AI stand-in who gave an adjudication. The adjudication file records one per decided row, the ground truth lists them, and every result file prints them. | arbiter, tie-breaker, decider |
 | provisional | The state of a ground truth with at least one disagreement that has no adjudication. Every result file records whether its truth is provisional. | draft, preliminary, incomplete, tentative |
 | line kind | The kind of text a ground truth line holds: one of the kinds in the line kinds table. A text line takes the kind the review sheet records for it. A name line takes the kind of the declaration its name refers to, as the type checker reports it. A line that holds two kinds has both. | line type, line category, token kind |
-| declaration kind | The kind the type checker reports for the declaration a name refers to, such as property, parameter, or method. The line kinds table maps each declaration kind to a line kind. | symbol kind, element kind, TypeScript kind |
+| declaration kind | The kind the type checker reports for the declaration a name refers to, such as property, parameter, or method. The line kinds table maps each declaration kind to a line kind. | symbol kind, element kind |
 
 ### Line kinds
 
