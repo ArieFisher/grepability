@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import {copyIntoSlot, copyName, loadAgent, slotDir} from './agent-runner.mjs';
+import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, slotDir} from './agent-runner.mjs';
 import {agentArgs, agentEnv, agentSettings, checkAllowedTools, containedEnv} from './containment.mjs';
 import {commandTmpDir, publishedVersion, runChecked, toolCalls} from './lib.mjs';
 
@@ -65,6 +65,18 @@ test('copyIntoSlot throws when the slot still holds a run copy', () => {
 		assert.throws(() => copyIntoSlot(slot, publishedVersion), /did not finish/);
 	} finally {
 		fs.rmSync(slotDir(slot), {recursive: true, force: true});
+	}
+});
+
+test('checkSlotsEmpty throws when any slot still holds a run copy, and passes when none does', () => {
+	const stale = `test-${process.pid}-stale`;
+	const empty = `test-${process.pid}-empty`;
+	fs.mkdirSync(path.join(slotDir(stale), copyName()), {recursive: true});
+	try {
+		assert.doesNotThrow(() => checkSlotsEmpty([empty]));
+		assert.throws(() => checkSlotsEmpty([empty, stale]), /did not finish/);
+	} finally {
+		fs.rmSync(slotDir(stale), {recursive: true, force: true});
 	}
 });
 

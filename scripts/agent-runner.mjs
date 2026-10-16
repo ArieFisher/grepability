@@ -25,15 +25,22 @@ export const slotDir = slot => path.join(workDir, 'run-slots', String(slot));
 // Every run copy has the same folder name, the codebase repository's own, so all copies look alike from inside.
 export const copyName = () => path.basename(loadCodebase().repository, '.git');
 
-// A fresh run copy of a version in a slot, with its snapshot commit. A slot that still holds a copy
-// is from a run that stopped before its copy moved out, so the script stops instead of overwriting it.
-export const copyIntoSlot = (slot, version) => {
-	const directory = path.join(slotDir(slot), copyName());
-	if (fs.existsSync(directory)) {
-		throw new Error(`Run slot ${directory} still holds a run copy from a run that did not finish. Remove it, then start again.`);
+// A slot that still holds a copy is from a run that stopped before its copy moved out, so the script
+// stops instead of overwriting it. run-agents.mjs checks every slot before the first run starts, so a
+// stale slot never stops the script while another slot's run is underway.
+export const checkSlotsEmpty = slots => {
+	for (const slot of slots) {
+		const directory = path.join(slotDir(slot), copyName());
+		if (fs.existsSync(directory)) {
+			throw new Error(`Run slot ${directory} still holds a run copy from a run that did not finish. Remove it, then start again.`);
+		}
 	}
+};
 
-	return makeRunCopy(versionDir(version), directory);
+// A fresh run copy of a version in a slot, with its snapshot commit.
+export const copyIntoSlot = (slot, version) => {
+	checkSlotsEmpty([slot]);
+	return makeRunCopy(versionDir(version), path.join(slotDir(slot), copyName()));
 };
 
 // Runs claude on one prompt in a run copy and writes its transcript to logFile. tmpDir must exist; it

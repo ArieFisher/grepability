@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {copyIntoSlot, copyName, loadAgent, runAgent} from './agent-runner.mjs';
+import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, runAgent} from './agent-runner.mjs';
 import {diffSinceSnapshot, integerOption, interleave, loadTasks, missingRuns, option, readJson, summarizeTranscript, versions, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
@@ -37,6 +37,8 @@ const queue = interleave(jobs, job => `${job.task.id}|${job.version}`);
 console.log(`${queue.length} runs to do (${runsPerCell} per task per version, existing runs kept).`);
 
 // Each worker runs in its own slot, one run at a time.
+const slots = Array.from({length: parallel}, (_, index) => index + 1);
+checkSlotsEmpty(slots);
 const worker = async slot => {
 	while (queue.length > 0) {
 		const {task, version, index} = queue.shift();
@@ -71,5 +73,5 @@ const worker = async slot => {
 	}
 };
 
-await Promise.all(Array.from({length: parallel}, (_, index) => worker(index + 1)));
+await Promise.all(slots.map(slot => worker(slot)));
 console.log('Done. Next: node scripts/score-agents.mjs');

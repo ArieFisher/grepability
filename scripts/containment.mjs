@@ -1,5 +1,5 @@
-// Containment: keeps every write the experiment makes inside the project folder. Commands the scripts
-// start get a temporary folder and an npm cache inside the project. Each agent runs with the Claude Code
+// Containment: keeps every write the experiment makes inside the project. Commands the scripts start
+// get a temporary folder and an npm cache inside the project. Each agent runs with the Claude Code
 // sandbox on and its file tools confined to its run copy.
 import path from 'node:path';
 
@@ -17,14 +17,16 @@ export const containedEnv = (env, tmpDir) => ({
 export const agentEnv = (env, tmpDir) => ({...containedEnv(env, tmpDir), CLAUDE_CODE_TMPDIR: tmpDir});
 
 // The Claude Code settings for one agent run, passed with --settings.
-// - enabled runs every Bash command inside the operating system sandbox (Seatbelt on macOS). A sandboxed
-//   command can write only to the working directory, which is the run copy, and the allowWrite paths.
-// - failIfUnavailable stops Claude Code at startup when the sandbox cannot start, so no run falls back
-//   to unsandboxed commands.
-// - allowUnsandboxedCommands: false removes the retry outside the sandbox after a blocked command.
-// - autoAllowBashIfSandboxed: false keeps the allowedTools list as the filter on which commands run.
+// - With enabled, Claude Code runs every Bash command inside the operating system sandbox (Seatbelt on
+//   macOS). A sandboxed command can write only to the working directory, which is the run copy, and the
+//   allowWrite paths.
+// - With failIfUnavailable, Claude Code exits at startup when the sandbox cannot start, so no run falls
+//   back to unsandboxed commands.
+// - With allowUnsandboxedCommands: false, Claude Code gives a blocked command no retry outside the sandbox.
+// - With autoAllowBashIfSandboxed: false, Claude Code runs only the commands the allowedTools list matches.
 // - allowWrite adds the run's temporary folder, which holds TMPDIR and the npm cache.
-// - allowLocalBinding lets the codebase's tests start and reach local servers. Every other host stays closed.
+// - With allowLocalBinding, the sandbox lets the codebase's tests start and reach local servers. It
+//   blocks every other host.
 export const agentSettings = tmpDir => ({
 	sandbox: {
 		enabled: true,
@@ -46,10 +48,11 @@ export const checkAllowedTools = allowedTools => {
 };
 
 // The claude arguments for one agent run.
-// --restricted confines the file tools (Read, Edit, Write, Grep, Glob) to the working directory, and
-// loads no user, project, or local settings file, so the settings below are the only ones besides any
-// managed settings. Bash stays because --tools names it. acceptEdits approves file edits inside the
-// working directory without a prompt; a call that would prompt is denied, because a -p run has no one to ask.
+// Under --restricted, Claude Code confines the file tools (Read, Edit, Write, Grep, Glob) to the working
+// directory and loads no user, project, or local settings file, so the settings below are the only ones
+// besides any managed settings. Claude Code keeps Bash because --tools lists it. Under acceptEdits, Claude
+// Code approves file edits inside the working directory without a prompt, and denies a call that would
+// prompt, because a -p run has no one to ask.
 export const agentArgs = ({prompt, model, agent, tmpDir}) => {
 	checkAllowedTools(agent.allowedTools);
 	return [
