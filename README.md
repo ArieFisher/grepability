@@ -39,7 +39,7 @@ For the definition of every term below, see [docs/vocabulary.md](docs/vocabulary
      
 3. **Design a measure** for grepability  
      
-   `grepability` is a blend of 2 metrics:  
+   `grepability` is a blend of 2 metrics[^1]:  
 
    1. **how much of the right things did it find (AKA: recall)**  
 
@@ -56,9 +56,6 @@ For the definition of every term below, see [docs/vocabulary.md](docs/vocabulary
       * **Example:** If the search returns all 10 lines of the concept and 90 unrelated lines that share a word with it, precision is **10%** (10 of 100 lines returned were correct).  
       * **Interpretation**: A high score means that the terms chosen to represent concepts **distinguish** them easily. So a concept that was represented by a broad term (such as "delay") that matches every line of the concept \- along with hundreds of unrelated lines \- would hurt the ‘grepability’ of this code base.  
         A low score indicates the need to refactor concept names to be more distinguishing.
-
-   The two metrics are blended using the harmonic mean to yield an F1-score (which we call here `grepability` or simply ‘search score’ ) and define as: `2 * (Precision * Recall) / (Precision + Recall)`  
-   In the example shown, the `grepability` score is 18%.  
      
 4. **Measure**: the grepability of the two codebases (control and ground truth)  
      
@@ -132,3 +129,5 @@ In the proposed codebase, the agents found and changed every line of every kind.
 ## Conclusion
 
 \<tbd\>  
+
+[^1]: The two metrics are blended using the harmonic mean to yield an F1-score (which we call here `grepability` or simply ‘search score’ ) and define as: `2 * (Precision * Recall) / (Precision + Recall)`. In the example shown, the `grepability` score is 18%.
