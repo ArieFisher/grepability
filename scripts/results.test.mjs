@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {resultsTable, searchScore} from './results.mjs';
 
-const versionNames = ['published', 'proposed'];
+const codebaseVersionNames = ['published', 'proposed'];
 const concepts = [
 	{id: 'count', name: 'Count'},
 	{id: 'delay', name: 'Delay'},
@@ -24,7 +24,7 @@ const searchResults = [
 	searchRow('proposed', 'jitter', 1, 1),
 ];
 const run = (version, task, success) => ({version, task, success});
-const agentRuns = [
+const agentTaskRuns = [
 	run('published', 'find', true),
 	run('published', 'edit', false),
 	run('published', 'jitter-find', true),
@@ -48,63 +48,63 @@ test('searchScore of a search with no hits is 0, because its recall is 0', () =>
 
 test('resultsTable overall search score is null when a measured concept has no search score in a version', () => {
 	const noTruth = searchResults.map(row => row.version === 'proposed' && row.concept === 'delay' ? {...row, recall: null} : row);
-	const table = resultsTable({concepts, tasks, searchResults: noTruth, agentRuns, versionNames});
-	assert.equal(table.overall.byVersion.proposed.searchScore, null);
+	const table = resultsTable({concepts, tasks, searchResults: noTruth, agentTaskRuns, codebaseVersionNames});
+	assert.equal(table.overall.byCodebaseVersion.proposed.searchScore, null);
 	assert.equal(table.overall.change.searchScore, null);
 });
 
 test('resultsTable counts the runs scored without the type check and the tests', () => {
-	const skipped = [...agentRuns, {...run('published', 'edit', true), testsRun: false}];
-	assert.equal(resultsTable({concepts, tasks, searchResults, agentRuns: skipped, versionNames}).skippedRuns, 1);
-	assert.equal(resultsTable({concepts, tasks, searchResults, agentRuns, versionNames}).skippedRuns, 0);
+	const skipped = [...agentTaskRuns, {...run('published', 'edit', true), testsRun: false}];
+	assert.equal(resultsTable({concepts, tasks, searchResults, agentTaskRuns: skipped, codebaseVersionNames}).skippedAgentTaskRuns, 1);
+	assert.equal(resultsTable({concepts, tasks, searchResults, agentTaskRuns, codebaseVersionNames}).skippedAgentTaskRuns, 0);
 });
 
 test('resultsTable counts the runs with unknown success and leaves them out of the agent score', () => {
-	const unknown = [...agentRuns, run('published', 'edit', null)];
-	const table = resultsTable({concepts, tasks, searchResults, agentRuns: unknown, versionNames});
-	assert.equal(table.unknownRuns, 1);
-	assert.equal(table.rows[0].byVersion.published.agent.runs, 2);
-	assert.equal(resultsTable({concepts, tasks, searchResults, agentRuns, versionNames}).unknownRuns, 0);
+	const unknown = [...agentTaskRuns, run('published', 'edit', null)];
+	const table = resultsTable({concepts, tasks, searchResults, agentTaskRuns: unknown, codebaseVersionNames});
+	assert.equal(table.unknownAgentTaskRuns, 1);
+	assert.equal(table.rows[0].byCodebaseVersion.published.agent.agentTaskRuns, 2);
+	assert.equal(resultsTable({concepts, tasks, searchResults, agentTaskRuns, codebaseVersionNames}).unknownAgentTaskRuns, 0);
 });
 
 test('resultsTable gives each concept its search score and agent score per version', () => {
-	const table = resultsTable({concepts, tasks, searchResults, agentRuns, versionNames});
+	const table = resultsTable({concepts, tasks, searchResults, agentTaskRuns, codebaseVersionNames});
 	const count = table.rows.find(row => row.concept === 'count');
-	close(count.byVersion.published.searchScore, 2 / 3);
-	assert.equal(count.byVersion.proposed.searchScore, 1);
-	assert.deepEqual({successes: count.byVersion.published.agent.successes, runs: count.byVersion.published.agent.runs}, {successes: 1, runs: 2});
-	assert.equal(count.byVersion.proposed.agent.score, 1);
-	assert.ok(count.byVersion.proposed.agent.interval.low < 1);
+	close(count.byCodebaseVersion.published.searchScore, 2 / 3);
+	assert.equal(count.byCodebaseVersion.proposed.searchScore, 1);
+	assert.deepEqual({successes: count.byCodebaseVersion.published.agent.successes, agentTaskRuns: count.byCodebaseVersion.published.agent.agentTaskRuns}, {successes: 1, agentTaskRuns: 2});
+	assert.equal(count.byCodebaseVersion.proposed.agent.score, 1);
+	assert.ok(count.byCodebaseVersion.proposed.agent.interval.low < 1);
 	close(count.change.searchScore, 1 / 3);
 	assert.equal(count.change.agentScore, 0.5);
 });
 
 test('resultsTable gives no agent score to a concept without runs', () => {
-	const table = resultsTable({concepts, tasks, searchResults, agentRuns, versionNames});
+	const table = resultsTable({concepts, tasks, searchResults, agentTaskRuns, codebaseVersionNames});
 	const delay = table.rows.find(row => row.concept === 'delay');
-	assert.equal(delay.byVersion.published.agent, null);
+	assert.equal(delay.byCodebaseVersion.published.agent, null);
 	assert.equal(delay.change.agentScore, null);
 });
 
 test('resultsTable overall row leaves out the control concept', () => {
-	const table = resultsTable({concepts, tasks, searchResults, agentRuns, versionNames});
-	close(table.overall.byVersion.published.searchScore, ((2 / 3) + 0.5) / 2);
-	close(table.overall.byVersion.proposed.searchScore, (1 + (2 / 3)) / 2);
-	assert.equal(table.overall.byVersion.published.agent.score, 0.5);
-	assert.equal(table.overall.byVersion.proposed.agent.score, 1);
+	const table = resultsTable({concepts, tasks, searchResults, agentTaskRuns, codebaseVersionNames});
+	close(table.overall.byCodebaseVersion.published.searchScore, ((2 / 3) + 0.5) / 2);
+	close(table.overall.byCodebaseVersion.proposed.searchScore, (1 + (2 / 3)) / 2);
+	assert.equal(table.overall.byCodebaseVersion.published.agent.score, 0.5);
+	assert.equal(table.overall.byCodebaseVersion.proposed.agent.score, 1);
 	assert.equal(table.overall.change.agentScore, 0.5);
 });
 
 test('resultsTable with no agent runs gives every agent score as null', () => {
-	const table = resultsTable({concepts, tasks, searchResults, agentRuns: [], versionNames});
-	assert.ok(table.rows.every(row => versionNames.every(version => row.byVersion[version].agent === null)));
-	assert.equal(table.overall.byVersion.published.agent, null);
+	const table = resultsTable({concepts, tasks, searchResults, agentTaskRuns: [], codebaseVersionNames});
+	assert.ok(table.rows.every(row => codebaseVersionNames.every(version => row.byCodebaseVersion[version].agent === null)));
+	assert.equal(table.overall.byCodebaseVersion.published.agent, null);
 });
 
 test('resultsTable throws when a concept has no search result in a version', () => {
-	assert.throws(() => resultsTable({concepts, tasks, searchResults: searchResults.slice(1), agentRuns, versionNames}), /count.*published/);
+	assert.throws(() => resultsTable({concepts, tasks, searchResults: searchResults.slice(1), agentTaskRuns, codebaseVersionNames}), /count.*published/);
 });
 
 test('resultsTable throws on a run whose task is not in the task configuration', () => {
-	assert.throws(() => resultsTable({concepts, tasks, searchResults, agentRuns: [run('published', 'gone', true)], versionNames}), /gone/);
+	assert.throws(() => resultsTable({concepts, tasks, searchResults, agentTaskRuns: [run('published', 'gone', true)], codebaseVersionNames}), /gone/);
 });

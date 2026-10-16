@@ -1,6 +1,6 @@
 // Builds the ground truth: every line of the published codebase where each concept appears.
 //   Names in code: the type checker's references for each seed symbol in config/concepts.json.
-//   Comments and strings: lines the reviewers tagged (truth/reviewer-*.csv). Lines all reviewers agree on
+//   Comments and strings: lines the taggers tagged (truth/reviewer-*.csv). Lines all taggers agree on
 //   count; disagreements go to truth/disagreements.csv. Duplicate that file as truth/adjudication.csv and set
 //   `decision` to yes or no and `adjudicator` to who decided, a person or an AI stand-in, on each row;
 //   adjudicated rows then count too, and truth.json lists the adjudicators. Without adjudication the
@@ -8,9 +8,9 @@
 // Usage: node ground-truth.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {checkReviewers, createService, fromCsv, inCorpus, key, lineKindOf, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, readLineKinds, relative, runChecked, splitKey, textKinds, toCsv, usedAdjudicators, versionDir, writeJson} from './lib.mjs';
+import {checkTaggers, codebaseVersionDir, createService, fromCsv, inCorpus, key, lineKindOf, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedCodebaseVersion, readAdjudication, readLineKinds, relative, runChecked, splitKey, textKinds, toCsv, usedAdjudicators, writeJson} from './lib.mjs';
 
-const root = versionDir(publishedVersion);
+const root = codebaseVersionDir(publishedCodebaseVersion);
 const {concepts} = loadConcepts();
 const truthDir = path.join(projectRoot, 'truth');
 const lineKinds = readLineKinds(fs.readFileSync(path.join(projectRoot, 'docs', 'vocabulary.md'), 'utf8'));
@@ -66,19 +66,19 @@ for (const concept of concepts) {
 }
 
 // Comments and strings.
-const reviewerFiles = fs.readdirSync(truthDir).filter(file => /^reviewer-.+\.csv$/.test(file)).sort();
-if (reviewerFiles.length === 0) {
-	throw new Error('No reviewer files in truth/. Run extract-review-sheet.mjs and tag it first.');
+const taggerFiles = fs.readdirSync(truthDir).filter(file => /^reviewer-.+\.csv$/.test(file)).sort();
+if (taggerFiles.length === 0) {
+	throw new Error('No tagger files in truth/. Run extract-tagging-sheet.mjs and tag the tagging sheet first.');
 }
 
-const reviewers = reviewerFiles.map(file => ({
+const taggers = taggerFiles.map(file => ({
 	name: file.replace(/^reviewer-|\.csv$/g, ''),
 	tags: new Map(fromCsv(fs.readFileSync(path.join(truthDir, file), 'utf8'))
 		.map(row => [key(row.file, row.line), {row, ids: new Set(row.concepts.split(/\s+/).filter(Boolean))}])),
 }));
 const sheetRows = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'), 'utf8'));
 const rowKeys = sheetRows.map(row => key(row.file, row.line));
-// A text line takes the line kind the review sheet records for it.
+// A text line takes the line kind the tagging sheet records for it.
 const textKind = new Map(sheetRows.map(row => {
 	if (!textKinds.has(row.kind)) {
 		throw new Error(`truth/review-sheet.csv: ${row.file}:${row.line} has kind "${row.kind}"; a text line is a comment or a string.`);
@@ -86,7 +86,7 @@ const textKind = new Map(sheetRows.map(row => {
 
 	return [key(row.file, row.line), row.kind];
 }));
-checkReviewers(rowKeys, reviewers, new Set(concepts.map(concept => concept.id)));
+checkTaggers(rowKeys, taggers, new Set(concepts.map(concept => concept.id)));
 const adjudicationFile = path.join(truthDir, 'adjudication.csv');
 const adjudication = readAdjudication(fs.existsSync(adjudicationFile)
 	? fromCsv(fs.readFileSync(adjudicationFile, 'utf8'))
@@ -102,7 +102,7 @@ for (const concept of concepts) {
 	let neither = 0;
 	let split = 0;
 	for (const rowKey of rowKeys) {
-		const votes = reviewers.map(reviewer => reviewer.tags.get(rowKey)?.ids.has(concept.id) ?? false);
+		const votes = taggers.map(tagger => tagger.tags.get(rowKey)?.ids.has(concept.id) ?? false);
 		if (votes.every(Boolean)) {
 			both++;
 			textLines.get(concept.id).add(rowKey);
@@ -117,19 +117,19 @@ for (const concept of concepts) {
 				unresolved++;
 			}
 
-			const {row} = reviewers[0].tags.get(rowKey);
-			disagreements.push([row.file, row.line, concept.id, reviewers.filter((_, i) => votes[i]).map(reviewer => reviewer.name).join(' '), decision, adjudicator, row.text]);
+			const {row} = taggers[0].tags.get(rowKey);
+			disagreements.push([row.file, row.line, concept.id, taggers.filter((_, i) => votes[i]).map(tagger => tagger.name).join(' '), decision, adjudicator, row.text]);
 		} else {
 			neither++;
 		}
 	}
 
-	// Cohen's kappa for two reviewers; with more, the share of agreeing rows.
+	// Cohen's kappa for two taggers summarizes the agreement; with more, the share of agreeing rows.
 	const total = both + neither + split;
 	const observed = (both + neither) / total;
 	let kappa = null;
-	if (reviewers.length === 2) {
-		const [a, b] = reviewers.map(reviewer => rowKeys.filter(rowKey => reviewer.tags.get(rowKey)?.ids.has(concept.id)).length / total);
+	if (taggers.length === 2) {
+		const [a, b] = taggers.map(tagger => rowKeys.filter(rowKey => tagger.tags.get(rowKey)?.ids.has(concept.id)).length / total);
 		const expected = (a * b) + ((1 - a) * (1 - b));
 		kappa = expected === 1 ? 1 : (observed - expected) / (1 - expected);
 	}
@@ -148,7 +148,7 @@ const sortKeys = keys => [...keys].sort((a, b) => {
 
 const truth = {
 	commit: loadCodebase().commit,
-	reviewers: reviewers.map(reviewer => reviewer.name),
+	reviewers: taggers.map(tagger => tagger.name),
 	provisional: unresolved > 0,
 	unresolvedDisagreements: unresolved,
 	adjudicators,
@@ -173,7 +173,7 @@ for (const concept of concepts) {
 		.map(([kind, count]) => `${count} ${kind}`)
 		.join(', ');
 	const {kappa, disagreed} = agreement[concept.id];
-	console.log(`${concept.id}: ${kinds.length} lines (${perKind}); reviewer kappa ${kappa ?? 'n/a'}, ${disagreed} disagreements`);
+	console.log(`${concept.id}: ${kinds.length} lines (${perKind}); tagger kappa ${kappa ?? 'n/a'}, ${disagreed} disagreements`);
 }
 
 for (const [declarationKind, lines] of otherKinds) {
@@ -181,5 +181,5 @@ for (const [declarationKind, lines] of otherKinds) {
 }
 
 console.log(truth.provisional
-	? `Provisional: ${unresolved} disagreements unresolved. Decide them in truth/adjudication.csv (a duplicate of truth/disagreements.csv) and rerun.`
+	? `Provisional: ${unresolved} disagreements unresolved. Decide them in truth/adjudication.csv (a duplicate of truth/disagreements.csv) and run this script again.`
 	: 'All disagreements resolved.');

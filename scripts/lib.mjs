@@ -1,4 +1,5 @@
-// Shared helpers: codebase configuration, file lists, TypeScript language service, comment lines, test reruns.
+// Shared helpers: codebase configuration, file lists, TypeScript language service, comment lines, individual
+// codebase verification re-executions.
 import {execFileSync, spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -12,27 +13,28 @@ export * from './helpers.mjs';
 
 export const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const workDir = path.join(projectRoot, 'work');
-// The two versions of the codebase: the published codebase and the proposed codebase. Each lives in work/<version>.
-export const publishedVersion = 'published';
-export const proposedVersion = 'proposed';
-export const versions = [publishedVersion, proposedVersion];
-export const versionDir = version => path.join(workDir, version);
+// The two codebase versions: the published codebase and the proposed codebase. Each lives in work/<codebase version>.
+export const publishedCodebaseVersion = 'published';
+export const proposedCodebaseVersion = 'proposed';
+export const codebaseVersions = [publishedCodebaseVersion, proposedCodebaseVersion];
+export const codebaseVersionDir = codebaseVersion => path.join(workDir, codebaseVersion);
 export const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 export const writeJson = (file, data) => {
 	fs.mkdirSync(path.dirname(file), {recursive: true});
 	fs.writeFileSync(file, JSON.stringify(data, null, '\t') + '\n');
 };
 
+// The concept configuration holds the list of concepts.
 export const loadConcepts = () => readJson(path.join(projectRoot, 'config', 'concepts.json'));
 export const loadTasks = () => readJson(path.join(projectRoot, 'config', 'tasks.json'));
 
-// Cap on the output a child process may print to a script: 256 MiB, far above the diff or test
+// Cap on the output a child process may print to a script: 256 MiB, far above the diff or codebase verification suite
 // output of the Ky codebase. A child that prints more fails with an error.
 export const maxOutputBytes = 1 << 28;
 
-// A fresh run copy of a version: the files in a new directory, one commit named Snapshot, shared
-// dependencies linked. The diff after a run is taken against that snapshot commit.
-export const makeRunCopy = (source, directory) => {
+// A fresh agent task run copy of a codebase version: the files in a new directory, one commit named Snapshot, shared
+// dependencies linked. The diff after an agent task run is taken against that snapshot commit.
+export const makeAgentTaskRunCopy = (source, directory) => {
 	copyCodebase(source, directory);
 	const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
 	git('init', '-q');
@@ -49,8 +51,8 @@ export const diffSinceSnapshot = (directory, snapshot) => {
 	return execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color', '--src-prefix=a/', '--dst-prefix=b/', snapshot], {cwd: directory, encoding: 'utf8', maxBuffer: maxOutputBytes});
 };
 
-// Writes a version's files to a new directory without node_modules and .git, and links node_modules
-// to the dependencies that every version and run copy shares (work/deps, installed by setup.sh).
+// Writes a codebase version's files to a new directory without node_modules and .git, and links node_modules
+// to the dependencies that every codebase version and agent task run copy shares (work/deps, installed by setup.sh).
 export const copyCodebase = (source, destination) => {
 	fs.mkdirSync(path.dirname(destination), {recursive: true});
 	fs.cpSync(source, destination, {recursive: true, filter: from => !/[/\\](?:node_modules|\.git)$/.test(from)});
@@ -65,8 +67,9 @@ export const checkInstallCommand = command => {
 	}
 };
 
-// The codebase: which repository and commit the experiment runs on, which files form the corpus,
-// and how to type-check and test it. Every field is required, so a missing one fails here rather
+// The codebase: which repository and commit the experiment studies, which files form the corpus,
+// and how to type-check and verify it. Every script reads the codebase from here, so no script holds a fact about
+// the codebase itself. Every field is required, so a missing one fails here rather
 // than as an undefined deep inside a script.
 const codebaseFile = path.join(projectRoot, 'config', 'codebase.json');
 let codebaseCache;
@@ -131,12 +134,12 @@ export const installCodebase = (root, command = loadCodebase().install) => {
 	runStep('install', command, root);
 };
 
-// Runs the codebase's own compile step in one directory, so its type tests see the declarations of
+// Runs the codebase's own compile step in one directory, so its type checks see the declarations of
 // that directory's source. A failed step throws.
 export const compileCodebase = (root, command = loadCodebase().compile) => runStep('compile', command, root);
 
 // Language service over the project's own tsconfig.json, so references match what the compiler sees.
-// Files can be overridden in memory (used when applying renames). A tsconfig that is missing or has
+// Files can be overridden in memory (used when applying name edits). A tsconfig that is missing or has
 // errors stops here, because a service over the wrong file list finds the wrong references.
 export const createService = (root, overrides = new Map()) => {
 	const configPath = path.join(root, 'tsconfig.json');
@@ -259,30 +262,34 @@ export const commentLinesOfText = (file, text) => {
 export const commentLines = root => corpusFiles(root)
 	.flatMap(file => commentLinesOfText(file, fs.readFileSync(path.join(root, file), 'utf8')));
 
-// The hidden test's file name inside a run copy. The name is fixed so scoring can pick its results out of the test run.
-const hiddenTestName = 'hidden-acceptance';
+// The withheld acceptance test's file name inside an agent task run copy. The name is fixed so scoring can pick its
+// results out of the codebase verification suite execution.
+const withheldAcceptanceTestName = 'withheld-acceptance';
 
-export const hiddenTestPath = root => {
+export const withheldAcceptanceTestPath = root => {
 	const {directory, extension} = loadCodebase().verificationSuite;
-	return path.join(root, directory, `${hiddenTestName}${extension}`);
+	return path.join(root, directory, `${withheldAcceptanceTestName}${extension}`);
 };
 
-export const isHiddenTest = title => title.startsWith(hiddenTestName);
+export const isWithheldAcceptanceTest = verificationTitle => verificationTitle.startsWith(withheldAcceptanceTestName);
 
-// How often a differing test reruns. Three reruns in one directory show whether the test is steady
-// (all agree) or flaky (they differ), at the cost of three test-file runs per differing test.
-export const rerunCount = 3;
+// How often a differing individual codebase verification re-executes. Three re-executions in one directory show
+// whether the individual codebase verification is steady (all agree) or a flaky verification (they differ), at the
+// cost of three verification file executions per differing individual codebase verification.
+export const reexecutionCount = 3;
 
-// Reruns one test a few times by its TAP title; returns how many runs passed. The codebase's rerun
-// command is a template: {file} is the test file the title starts with, {name} the rest of the title.
-// A `*` in the name is escaped so a runner that matches names as globs takes it literally. A runner that
-// matches names in any letter case also executes a test whose name differs only in case, so a rerun counts as
-// passed only when parseTap reads the exact name as passing; a runner executing one test file prints names with no file.
-export const rerunTest = (root, title, times = rerunCount, tests = loadCodebase().verificationSuite) => {
-	const [file, ...nameParts] = title.split(tests.verificationTitleSeparator);
-	const name = nameParts.join(tests.verificationTitleSeparator);
-	const [command, ...args] = tests.reexecution.map(part => part
-		.replaceAll('{file}', `${tests.directory}/${file}${tests.extension}`)
+// Re-executes one individual codebase verification a few times by its verification title; returns how many
+// re-executions passed. The codebase's re-execution command is a template: {file} is the verification file the
+// title starts with, {name} the rest of the title. A `*` in the name is escaped so a runner that matches names as
+// globs takes it literally. A runner that matches names in any letter case also executes an individual codebase
+// verification whose name differs only in case, so a re-execution counts as passed only when parseTap reads the
+// exact name as passing; a runner executing one verification file prints names with no file.
+export const reexecuteVerification = (root, verificationTitle, times = reexecutionCount, verificationSuite = loadCodebase().verificationSuite) => {
+	const separator = verificationSuite.verificationTitleSeparator;
+	const [file, ...nameParts] = verificationTitle.split(separator);
+	const name = nameParts.join(separator);
+	const [command, ...args] = verificationSuite.reexecution.map(part => part
+		.replaceAll('{file}', `${verificationSuite.directory}/${file}${verificationSuite.extension}`)
 		.replaceAll('{name}', name.replaceAll('*', String.raw`\*`)));
 	let passed = 0;
 	for (let i = 0; i < times; i++) {
@@ -295,27 +302,28 @@ export const rerunTest = (root, title, times = rerunCount, tests = loadCodebase(
 	return passed;
 };
 
-// Compares two test-result files. A test whose result differs is rerun in both copies;
-// if it both passes and fails across reruns it is reported as flaky, not as a difference.
-export const compareTests = (resultA, resultB) => {
-	const names = Object.keys({...resultA.tests, ...resultB.tests});
-	const changed = names.filter(name => resultA.tests[name] !== resultB.tests[name]);
+// Compares two codebase verification suite result files. An individual codebase verification whose result
+// differs re-executes in both directories; one that both passes and fails across re-executions is a flaky
+// verification, not a difference.
+export const compareVerificationSuiteResults = (resultA, resultB) => {
+	const titles = Object.keys({...resultA.tests, ...resultB.tests});
+	const changed = titles.filter(title => resultA.tests[title] !== resultB.tests[title]);
 	const differences = [];
-	const flaky = [];
-	for (const name of changed) {
-		if (resultA.tests[name] === undefined || resultB.tests[name] === undefined) {
-			differences.push({name, a: resultA.tests[name], b: resultB.tests[name]});
+	const flakyVerifications = [];
+	for (const title of changed) {
+		if (resultA.tests[title] === undefined || resultB.tests[title] === undefined) {
+			differences.push({title, a: resultA.tests[title], b: resultB.tests[title]});
 			continue;
 		}
 
-		const passesA = rerunTest(resultA.directory, name);
-		const passesB = rerunTest(resultB.directory, name);
-		if ((passesA > 0 && passesA < rerunCount) || (passesB > 0 && passesB < rerunCount) || (passesA > 0) === (passesB > 0)) {
-			flaky.push(name);
+		const passesA = reexecuteVerification(resultA.directory, title);
+		const passesB = reexecuteVerification(resultB.directory, title);
+		if ((passesA > 0 && passesA < reexecutionCount) || (passesB > 0 && passesB < reexecutionCount) || (passesA > 0) === (passesB > 0)) {
+			flakyVerifications.push(title);
 		} else {
-			differences.push({name, a: passesA === rerunCount, b: passesB === rerunCount});
+			differences.push({title, a: passesA === reexecutionCount, b: passesB === reexecutionCount});
 		}
 	}
 
-	return {differences, flaky};
+	return {differences, flakyVerifications};
 };

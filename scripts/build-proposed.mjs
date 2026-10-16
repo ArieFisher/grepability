@@ -1,15 +1,15 @@
 // Builds the proposed codebase from the published codebase using config/proposed-edits.json:
-//   renames: type-checker renames, so every reference changes and nothing else does;
+//   nameEdits: name edits through the type checker, so every reference changes and nothing else does;
 //   comments: exact wording replacements on one line each.
-// Then checks that every file keeps its line count (so ground-truth lines map 1:1) and that
-// type checks and tests give the same results as the published codebase.
+// Then checks that every file keeps its line count (so ground-truth lines map 1:1) and that type checks and the
+// codebase verification suite give the same results as the published codebase.
 // Usage: node build-proposed.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {compareTests, compileCodebase, copyCodebase, corpusFiles, createService, positionInText, projectRoot, proposedVersion, publishedVersion, readJson, relative, runChecked, versionDir, workDir} from './lib.mjs';
+import {codebaseVersionDir, compareVerificationSuiteResults, compileCodebase, copyCodebase, corpusFiles, createService, positionInText, projectRoot, proposedCodebaseVersion, publishedCodebaseVersion, readJson, relative, runChecked, workDir} from './lib.mjs';
 
-const source = versionDir(publishedVersion);
-const target = versionDir(proposedVersion);
+const source = codebaseVersionDir(publishedCodebaseVersion);
+const target = codebaseVersionDir(proposedCodebaseVersion);
 const edits = readJson(path.join(projectRoot, 'config', 'proposed-edits.json'));
 
 fs.rmSync(target, {recursive: true, force: true});
@@ -18,36 +18,36 @@ copyCodebase(source, target);
 const texts = new Map(corpusFiles(target).map(file => [path.join(target, file), fs.readFileSync(path.join(target, file), 'utf8')]));
 const log = [];
 
-for (const rename of edits.nameEdits) {
-	const absolute = path.join(target, rename.file);
-	const position = positionInText(texts.get(absolute), rename.file, rename.line, rename.name, rename.nth ?? 0);
+for (const nameEdit of edits.nameEdits) {
+	const absolute = path.join(target, nameEdit.file);
+	const position = positionInText(texts.get(absolute), nameEdit.file, nameEdit.line, nameEdit.name, nameEdit.nth ?? 0);
 	const service = createService(target, texts);
 	const info = service.getRenameInfo(absolute, position, {allowRenameOfImportPath: false});
 	if (!info.canRename) {
-		throw new Error(`Cannot rename ${rename.name} at ${rename.file}:${rename.line}: ${info.localizedErrorMessage}`);
+		throw new Error(`Cannot apply the name edit to ${nameEdit.name} at ${nameEdit.file}:${nameEdit.line}: ${info.localizedErrorMessage}`);
 	}
 
 	const locations = service.findRenameLocations(absolute, position, false, false, {providePrefixAndSuffixTextForRename: true});
 	if (!locations || locations.length === 0) {
-		throw new Error(`Rename of ${rename.name} at ${rename.file}:${rename.line} has no locations.`);
+		throw new Error(`The name edit of ${nameEdit.name} at ${nameEdit.file}:${nameEdit.line} has no locations.`);
 	}
 
 	const byFile = Map.groupBy(locations, location => location.fileName);
 	for (const [file, fileLocations] of byFile) {
 		if (!texts.has(file)) {
-			throw new Error(`Rename of ${rename.name} reaches outside the corpus: ${file}`);
+			throw new Error(`The name edit of ${nameEdit.name} reaches outside the corpus: ${file}`);
 		}
 
 		let text = texts.get(file);
 		for (const location of fileLocations.sort((a, b) => b.textSpan.start - a.textSpan.start)) {
-			const replacement = `${location.prefixText ?? ''}${rename.newName}${location.suffixText ?? ''}`;
+			const replacement = `${location.prefixText ?? ''}${nameEdit.newName}${location.suffixText ?? ''}`;
 			text = text.slice(0, location.textSpan.start) + replacement + text.slice(location.textSpan.start + location.textSpan.length);
 		}
 
 		texts.set(file, text);
 	}
 
-	log.push(`rename ${rename.name} -> ${rename.newName}: ${locations.length} locations in ${[...byFile.keys()].map(file => relative(target, file)).join(', ')}`);
+	log.push(`name edit ${nameEdit.name} -> ${nameEdit.newName}: ${locations.length} locations in ${[...byFile.keys()].map(file => relative(target, file)).join(', ')}`);
 }
 
 for (const edit of edits.comments) {
@@ -82,37 +82,38 @@ console.log(log.join('\n'));
 // The copied compile output still holds the published names. The proposed codebase compiles from its own source.
 compileCodebase(target);
 
-// Same type-check and test results as the published codebase?
-// run-tests exits 1 after a failed type check and still writes its result, so only a missing file is a failure.
-const runTests = version => {
-	const resultPath = path.join(workDir, `tests-${version}.json`);
+// Same type check and codebase verification suite results as the published codebase?
+// execute-verification-suite.mjs exits 1 after a failed type check and still writes its result, so only a missing
+// file is a failure.
+const executeVerificationSuite = codebaseVersion => {
+	const resultPath = path.join(workDir, `tests-${codebaseVersion}.json`);
 	fs.rmSync(resultPath, {force: true});
-	runChecked('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), version], {stdio: 'inherit'});
+	runChecked('node', [path.join(projectRoot, 'scripts', 'execute-verification-suite.mjs'), codebaseVersion], {stdio: 'inherit'});
 	if (!fs.existsSync(resultPath)) {
-		throw new Error(`The test run of ${version} wrote no result in ${resultPath}.`);
+		throw new Error(`The codebase verification suite execution of ${codebaseVersion} wrote no result in ${resultPath}.`);
 	}
 
 	return readJson(resultPath);
 };
 
-const proposed = runTests(proposedVersion);
-const baselinePath = path.join(workDir, `tests-${publishedVersion}.json`);
-const published = fs.existsSync(baselinePath) ? readJson(baselinePath) : runTests(publishedVersion);
+const proposed = executeVerificationSuite(proposedCodebaseVersion);
+const publishedResultsPath = path.join(workDir, `tests-${publishedCodebaseVersion}.json`);
+const published = fs.existsSync(publishedResultsPath) ? readJson(publishedResultsPath) : executeVerificationSuite(publishedCodebaseVersion);
 if (!published.typecheck) {
-	throw new Error(`The published codebase fails its type check, so it is no baseline:\n${published.typecheckErrors}`);
+	throw new Error(`The published codebase fails its type check, so the proposed codebase has no results to match:\n${published.typecheckErrors}`);
 }
 
 if (proposed.typecheck) {
-	const {differences, flaky} = compareTests(published, proposed);
-	if (flaky.length > 0) {
-		console.log(`Flaky in both versions, ignored: ${flaky.join('; ')}`);
+	const {differences, flakyVerifications} = compareVerificationSuiteResults(published, proposed);
+	if (flakyVerifications.length > 0) {
+		console.log(`Flaky verifications in both codebase versions, ignored: ${flakyVerifications.join('; ')}`);
 	}
 
 	if (differences.length > 0) {
-		console.log(`Tests differ from the published codebase:\n${differences.map(item => `  ${item.name}: published ${item.a}, proposed ${item.b}`).join('\n')}`);
+		console.log(`Individual codebase verifications differ from the published codebase:\n${differences.map(item => `  ${item.title}: published ${item.a}, proposed ${item.b}`).join('\n')}`);
 		process.exitCode = 1;
 	} else {
-		console.log('The proposed codebase matches the published codebase: type checks pass and every test has the same result.');
+		console.log('The proposed codebase matches the published codebase: type checks pass and every individual codebase verification has the same result.');
 	}
 } else {
 	console.log(`Proposed codebase type check FAILED:\n${proposed.typecheckErrors}`);

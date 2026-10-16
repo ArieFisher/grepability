@@ -5,8 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, isNameLine, kindTally, lineKindCells, lineKindOf, lineKindRows, readLineKinds, truthLines, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readLockedLines, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
-import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadCodebase, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
+import {agentSummaryRow, blindEditsReviewSheetRows, changedOriginalLines, editSuccess, findScore, isNameLine, kindTally, lineKindCells, lineKindOf, lineKindRows, readLineKinds, truthLines, fisherComparison, fromCsv, interleave, key, listedLines, matchesPublishedSearchPattern, mean, median, missingAgentTaskRuns, option, percent, readAdjudication, judgeLostVerificationTitles, lostReexecutionLimit, readLockedLines, readWrongEdits, editRegressionCandidates, renamedVerificationTitles, agentTaskRunMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {commentLinesOfText, copyCodebase, diffSinceSnapshot, withheldAcceptanceTestPath, isWithheldAcceptanceTest, loadCodebase, loadTasks, makeAgentTaskRunCopy, proposedCodebaseVersion, publishedCodebaseVersion, codebaseVersions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
 
@@ -78,14 +78,14 @@ test('splitKey inverts key', () => {
 	assert.deepEqual(splitKey(key('source/core/client.ts', 419)), {file: 'source/core/client.ts', line: 419});
 });
 
-test('versions lists the published codebase first and the proposed codebase second', () => {
-	assert.deepEqual(versions, [publishedVersion, proposedVersion]);
+test('codebaseVersions lists the published codebase first and the proposed codebase second', () => {
+	assert.deepEqual(codebaseVersions, [publishedCodebaseVersion, proposedCodebaseVersion]);
 });
 
-test('hiddenTestPath and isHiddenTest agree on the hidden test name', () => {
-	const title = path.basename(hiddenTestPath('/copy'), '.test.ts');
-	assert.ok(isHiddenTest(title), title);
-	assert.ok(!isHiddenTest('retry.test'));
+test('withheldAcceptanceTestPath and isWithheldAcceptanceTest agree on the hidden test name', () => {
+	const title = path.basename(withheldAcceptanceTestPath('/copy'), '.test.ts');
+	assert.ok(isWithheldAcceptanceTest(title), title);
+	assert.ok(!isWithheldAcceptanceTest('retry.test'));
 });
 
 test('loadTasks reads the task configuration', () => {
@@ -114,14 +114,14 @@ test('copyCodebase copies files, leaves out node_modules and .git, and links the
 	}
 });
 
-test('makeRunCopy copies a version, commits it as the snapshot, and leaves a clean tree', () => {
+test('makeAgentTaskRunCopy copies a version, commits it as the snapshot, and leaves a clean tree', () => {
 	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'make-run-copy-'));
 	try {
 		const source = path.join(scratch, 'source');
 		fs.mkdirSync(path.join(source, 'src'), {recursive: true});
 		fs.writeFileSync(path.join(source, 'src', 'a.ts'), 'export {};\n');
 		fs.writeFileSync(path.join(source, '.gitignore'), 'node_modules/\n');
-		const {directory, snapshot} = makeRunCopy(source, path.join(scratch, 'out', 'copy'));
+		const {directory, snapshot} = makeAgentTaskRunCopy(source, path.join(scratch, 'out', 'copy'));
 		assert.match(snapshot, /^[\da-f]{40}$/);
 		const git = (...args) => execFileSync('git', args, {cwd: directory, encoding: 'utf8'});
 		assert.equal(git('rev-parse', 'HEAD').trim(), snapshot);
@@ -226,23 +226,23 @@ test('interleave puts one job from every cell in each round', () => {
 	}
 });
 
-test('runMeasures reads time, cost, turns, and tool counts of a local run', () => {
+test('agentTaskRunMeasures reads time, cost, turns, and tool counts of a local run', () => {
 	const run = {wallMs: 90_400, costUsd: 0.5, turns: 7, toolCounts: {Read: 3, Grep: 2, 'Bash:rg': 1, 'Bash:cat': 4}};
-	assert.deepEqual(runMeasures(run), {wallSeconds: 90, costUsd: 0.5, turns: 7, searchCalls: 3, readCalls: 3, tools: JSON.stringify(run.toolCounts)});
+	assert.deepEqual(agentTaskRunMeasures(run), {wallSeconds: 90, costUsd: 0.5, turns: 7, searchCalls: 3, readCalls: 3, tools: JSON.stringify(run.toolCounts)});
 });
 
-test('runMeasures gives null for what a cloud run does not report', () => {
+test('agentTaskRunMeasures gives null for what a cloud run does not report', () => {
 	const run = {wallMs: null, costUsd: null, turns: null, toolCounts: null};
-	assert.deepEqual(runMeasures(run), {wallSeconds: null, costUsd: null, turns: null, searchCalls: null, readCalls: null, tools: ''});
+	assert.deepEqual(agentTaskRunMeasures(run), {wallSeconds: null, costUsd: null, turns: null, searchCalls: null, readCalls: null, tools: ''});
 });
 
-test('missingRuns lists the runs each cell still needs, numbered after the runs done', () => {
+test('missingAgentTaskRuns lists the runs each cell still needs, numbered after the runs done', () => {
 	const tasks = [{id: 't1'}, {id: 't2'}];
 	const done = (task, version) => task.id === 't1' && version === 'a' ? 2 : 0;
-	const jobs = missingRuns(tasks, ['a', 'b'], 3, done);
+	const jobs = missingAgentTaskRuns(tasks, ['a', 'b'], 3, done);
 	assert.equal(jobs.length, (3 - 2) + 3 + 3 + 3);
-	assert.deepEqual(jobs.filter(job => job.task.id === 't1' && job.version === 'a').map(job => job.index), [2]);
-	assert.deepEqual(jobs.filter(job => job.task.id === 't2' && job.version === 'b').map(job => job.index), [0, 1, 2]);
+	assert.deepEqual(jobs.filter(job => job.task.id === 't1' && job.codebaseVersion === 'a').map(job => job.index), [2]);
+	assert.deepEqual(jobs.filter(job => job.task.id === 't2' && job.codebaseVersion === 'b').map(job => job.index), [0, 1, 2]);
 });
 
 test('shuffle returns a permutation and leaves the input alone', () => {
@@ -259,12 +259,12 @@ const hunk = (file, lines) => {
 	return [`diff --git a/${file} b/${file}`, `--- a/${file}`, `+++ b/${file}`, `@@ -1,${count('-')} +1,${count('+')} @@`, ...lines].join('\n');
 };
 
-test('renamedTitles maps the new title of a renamed declaration to its old title', () => {
+test('renamedVerificationTitles maps the new title of a renamed declaration to its old title', () => {
 	const diff = hunk('test/retry.ts', ["-test('retryCount is 1', async t => {", "+test('retryNumber is 1', async t => {"]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › retryNumber is 1', 'retry › retryCount is 1']]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['retry › retryNumber is 1', 'retry › retryCount is 1']]));
 });
 
-test('renamedTitles pairs removed and added declarations in order within one hunk', () => {
+test('renamedVerificationTitles pairs removed and added declarations in order within one hunk', () => {
 	const diff = hunk('test/hooks.ts', [
 		"-test('a retryCount', async t => {",
 		'-	const retryCount = 1;',
@@ -273,26 +273,26 @@ test('renamedTitles pairs removed and added declarations in order within one hun
 		'+	const retryNumber = 1;',
 		"+test.serial(\"b retryNumber\", t => {",
 	]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['hooks › a retryNumber', 'hooks › a retryCount'], ['hooks › b retryNumber', 'hooks › b retryCount']]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['hooks › a retryNumber', 'hooks › a retryCount'], ['hooks › b retryNumber', 'hooks › b retryCount']]));
 });
 
-test('renamedTitles skips a hunk whose removed and added declaration counts differ', () => {
+test('renamedVerificationTitles skips a hunk whose removed and added declaration counts differ', () => {
 	const diff = hunk('test/retry.ts', ["-test('gone', t => {", "-test('also gone', t => {", "+test('added', t => {"]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map());
 });
 
-test('renamedTitles pairs declarations only within the same hunk', () => {
+test('renamedVerificationTitles pairs declarations only within the same hunk', () => {
 	const diff = [hunk('test/retry.ts', ["-test('gone', t => {"]), '@@ -20,0 +20,1 @@', "+test('added', t => {"].join('\n');
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map());
 });
 
-test('renamedTitles ignores files outside the test directory, with another extension, or skipped', () => {
+test('renamedVerificationTitles ignores files outside the test directory, with another extension, or skipped', () => {
 	const lines = ["-test('old', t => {", "+test('new', t => {"];
 	const diff = [hunk('source/retry.ts', lines), hunk('test/retry.js', lines), hunk('test/browser.ts', lines)].join('\n');
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map());
 });
 
-test('renamedTitles reads backtick and escaped titles and skips a title with a template expression', () => {
+test('renamedVerificationTitles reads backtick and escaped titles and skips a title with a template expression', () => {
 	const diff = hunk('test/retry.ts', [
 		"-test(`plain retryCount`, t => {",
 		"-test('don\\'t retryCount', t => {",
@@ -301,125 +301,125 @@ test('renamedTitles reads backtick and escaped titles and skips a title with a t
 		"+test('don\\'t retryNumber', t => {",
 		'+	test(`${name} retryNumber`, t => {',
 	]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › plain retryNumber', 'retry › plain retryCount'], ["retry › don't retryNumber", "retry › don't retryCount"]]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['retry › plain retryNumber', 'retry › plain retryCount'], ["retry › don't retryNumber", "retry › don't retryCount"]]));
 });
 
-test('renamedTitles reads a removed line that starts with dashes as a removed line, not a file header', () => {
+test('renamedVerificationTitles reads a removed line that starts with dashes as a removed line, not a file header', () => {
 	const diff = hunk('test/retry.ts', ['--- a/test/other.ts', "-test('old', t => {", "+test('new', t => {"]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › new', 'retry › old']]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['retry › new', 'retry › old']]));
 });
 
-test('renamedTitles maps nothing when a declaration keeps its title', () => {
+test('renamedVerificationTitles maps nothing when a declaration keeps its title', () => {
 	const diff = hunk('test/retry.ts', ["-test('same', async t => {", "+test('same', t => {"]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map());
 });
 
-test('renamedTitles reads the whole hunk when it holds no-newline markers', () => {
+test('renamedVerificationTitles reads the whole hunk when it holds no-newline markers', () => {
 	const marker = '\\ No newline at end of file';
 	const diff = hunk('test/retry.ts', ["-test('a', t => {", "-test('b', t => {", marker, "+test('c', t => {", "+test('d', t => {", marker]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['retry › c', 'retry › a'], ['retry › d', 'retry › b']]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['retry › c', 'retry › a'], ['retry › d', 'retry › b']]));
 });
 
-test('renamedTitles uses the old path for removed declarations and the new path for added ones', () => {
+test('renamedVerificationTitles uses the old path for removed declarations and the new path for added ones', () => {
 	const diff = ['diff --git a/test/old.ts b/test/new.ts', 'similarity index 90%', 'rename from test/old.ts', 'rename to test/new.ts', '--- a/test/old.ts', '+++ b/test/new.ts', '@@ -1 +1 @@', "-test('x', t => {", "+test('y', t => {"].join('\n');
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['new › y', 'old › x']]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['new › y', 'old › x']]));
 });
 
-test('renamedTitles pairs nothing in a new or a deleted test file', () => {
+test('renamedVerificationTitles pairs nothing in a new or a deleted test file', () => {
 	const diff = [
 		'diff --git a/test/added.ts b/test/added.ts', 'new file mode 100644', '--- /dev/null', '+++ b/test/added.ts', '@@ -0,0 +1 @@', "+test('x', t => {",
 		'diff --git a/test/gone.ts b/test/gone.ts', 'deleted file mode 100644', '--- a/test/gone.ts', '+++ /dev/null', '@@ -1 +0,0 @@', "-test('y', t => {",
 	].join('\n');
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map());
 });
 
-test('renamedTitles reads a path that git ends with a tab', () => {
+test('renamedVerificationTitles reads a path that git ends with a tab', () => {
 	const diff = ['diff --git a/test/my file.ts b/test/my file.ts', '--- a/test/my file.ts\t', '+++ b/test/my file.ts\t', '@@ -1 +1 @@', "-test('x', t => {", "+test('y', t => {"].join('\n');
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['my file › y', 'my file › x']]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['my file › y', 'my file › x']]));
 });
 
-test('renamedTitles throws on a file header it cannot read, such as a quoted path', () => {
+test('renamedVerificationTitles throws on a file header it cannot read, such as a quoted path', () => {
 	const diff = [hunk('test/a.ts', ["-test('p', t => {", "+test('q', t => {"]), 'diff --git "a/test/\\303\\251.ts" "b/test/\\303\\251.ts"', '--- "a/test/\\303\\251.ts"', '+++ "b/test/\\303\\251.ts"', '@@ -1 +1 @@', "-test('r', t => {", "+test('s', t => {"].join('\n');
-	assert.throws(() => renamedTitles(diff, testsConfig), /cannot read the file header/);
+	assert.throws(() => renamedVerificationTitles(diff, testsConfig), /cannot read the file header/);
 });
 
-test('renamedTitles skips a quoted path outside the test directory', () => {
+test('renamedVerificationTitles skips a quoted path outside the test directory', () => {
 	const diff = ['diff --git "a/source/\\303\\251.ts" "b/source/\\303\\251.ts"', '--- "a/source/\\303\\251.ts"', '+++ "b/source/\\303\\251.ts"', '@@ -1 +1 @@', '-const a = 1;', '+const b = 1;', hunk('test/a.ts', ["-test('p', t => {", "+test('q', t => {"])].join('\n');
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map([['a › q', 'a › p']]));
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map([['a › q', 'a › p']]));
 });
 
-test('renamedTitles skips a title with an escape other than a quote or a backslash', () => {
+test('renamedVerificationTitles skips a title with an escape other than a quote or a backslash', () => {
 	const diff = hunk('test/retry.ts', ["-test('line\\nbreak', t => {", "+test('line\\nbreaks', t => {"]);
-	assert.deepEqual(renamedTitles(diff, testsConfig), new Map());
+	assert.deepEqual(renamedVerificationTitles(diff, testsConfig), new Map());
 });
 
-test('regressionCandidates reruns a baseline-passing test that fails and lists the lost titles of its test file', () => {
+test('editRegressionCandidates reruns a baseline-passing test that fails and lists the lost titles of its test file', () => {
 	const baseline = {'a › passes': true, 'a › fails': true, 'a › vanishes': true, 'a › was failing': false};
 	const run = {'a › passes': true, 'a › fails': false, 'a › was failing': false};
-	assert.deepEqual(regressionCandidates(baseline, run, new Map(), ' › '), {rerun: ['a › fails'], files: [{file: 'a', lostTitles: ['a › vanishes']}]});
+	assert.deepEqual(editRegressionCandidates(baseline, run, new Map(), ' › '), {reexecute: ['a › fails'], files: [{file: 'a', lostVerificationTitles: ['a › vanishes']}]});
 });
 
-test('regressionCandidates skips a failing test that the baseline lacks', () => {
-	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}, new Map(), ' › '), {rerun: [], files: []});
+test('editRegressionCandidates skips a failing test that the baseline lacks', () => {
+	assert.deepEqual(editRegressionCandidates({'a › old': true}, {'a › old': true, 'a › new': false}, new Map(), ' › '), {reexecute: [], files: []});
 });
 
-test('regressionCandidates judges a renamed test by its result under the new title', () => {
+test('editRegressionCandidates judges a renamed test by its result under the new title', () => {
 	const renames = new Map([['a › retryNumber is 1', 'a › retryCount is 1']]);
 	const baseline = {'a › retryCount is 1': true, 'a › other': true};
-	assert.deepEqual(regressionCandidates(baseline, {'a › retryNumber is 1': false, 'a › other': true}, renames, ' › '), {rerun: ['a › retryNumber is 1'], files: []});
-	assert.deepEqual(regressionCandidates(baseline, {'a › retryNumber is 1': true, 'a › other': true}, renames, ' › '), {rerun: [], files: []});
+	assert.deepEqual(editRegressionCandidates(baseline, {'a › retryNumber is 1': false, 'a › other': true}, renames, ' › '), {reexecute: ['a › retryNumber is 1'], files: []});
+	assert.deepEqual(editRegressionCandidates(baseline, {'a › retryNumber is 1': true, 'a › other': true}, renames, ' › '), {reexecute: [], files: []});
 });
 
-test('regressionCandidates ignores a renamed test that failed in the baseline and still fails', () => {
-	assert.deepEqual(regressionCandidates({'a › was failing': false}, {'a › renamed': false}, new Map([['a › renamed', 'a › was failing']]), ' › '), {rerun: [], files: []});
+test('editRegressionCandidates ignores a renamed test that failed in the baseline and still fails', () => {
+	assert.deepEqual(editRegressionCandidates({'a › was failing': false}, {'a › renamed': false}, new Map([['a › renamed', 'a › was failing']]), ' › '), {reexecute: [], files: []});
 });
 
-test('regressionCandidates lists the lost title of a renamed test under its new title', () => {
-	assert.deepEqual(regressionCandidates({'a › old': true}, {}, new Map([['a › new', 'a › old']]), ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › new']}]});
+test('editRegressionCandidates lists the lost title of a renamed test under its new title', () => {
+	assert.deepEqual(editRegressionCandidates({'a › old': true}, {}, new Map([['a › new', 'a › old']]), ' › '), {reexecute: [], files: [{file: 'a', lostVerificationTitles: ['a › new']}]});
 });
 
-test('regressionCandidates counts a new title with no rename as a lost title plus a new test', () => {
-	assert.deepEqual(regressionCandidates({'a › old': true}, {'a › new': true}, new Map(), ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › old']}]});
+test('editRegressionCandidates counts a new title with no rename as a lost title plus a new test', () => {
+	assert.deepEqual(editRegressionCandidates({'a › old': true}, {'a › new': true}, new Map(), ' › '), {reexecute: [], files: [{file: 'a', lostVerificationTitles: ['a › old']}]});
 });
 
-test('regressionCandidates groups by the text before the first separator and handles a title named __proto__', () => {
+test('editRegressionCandidates groups by the text before the first separator and handles a title named __proto__', () => {
 	const baseline = {'a › b › c': true, 'a › __proto__': true};
-	assert.deepEqual(regressionCandidates(baseline, {}, new Map(), ' › '), {rerun: [], files: [{file: 'a', lostTitles: ['a › b › c', 'a › __proto__']}]});
+	assert.deepEqual(editRegressionCandidates(baseline, {}, new Map(), ' › '), {reexecute: [], files: [{file: 'a', lostVerificationTitles: ['a › b › c', 'a › __proto__']}]});
 });
 
-test('judgeLostTitles marks a test file that stopped partway and counts the failed reruns before the pass as removed', () => {
+test('judgeLostVerificationTitles marks a test file that stopped partway and counts the failed reruns before the pass as removed', () => {
 	const results = [false, false, true];
-	assert.deepEqual(judgeLostTitles(['a › gone', 'a › gone too', 'a › present', 'a › other'], () => results.shift()), {removed: 2, stoppedPartway: true});
+	assert.deepEqual(judgeLostVerificationTitles(['a › gone', 'a › gone too', 'a › present', 'a › other'], () => results.shift()), {removedVerifications: 2, stoppedPartway: true});
 });
 
-test('judgeLostTitles counts every lost title as removed when all reruns fail', () => {
-	assert.deepEqual(judgeLostTitles(['a › x', 'a › y', 'a › z'], () => false), {removed: 3, stoppedPartway: false});
+test('judgeLostVerificationTitles counts every lost title as removed when all reruns fail', () => {
+	assert.deepEqual(judgeLostVerificationTitles(['a › x', 'a › y', 'a › z'], () => false), {removedVerifications: 3, stoppedPartway: false});
 });
 
-test('judgeLostTitles stops after the lost rerun limit of failed reruns', () => {
+test('judgeLostVerificationTitles stops after the lost rerun limit of failed reruns', () => {
 	const lost = Array.from({length: 100}, (_, i) => `a › t${i}`);
 	let reruns = 0;
-	assert.deepEqual(judgeLostTitles(lost, () => {
+	assert.deepEqual(judgeLostVerificationTitles(lost, () => {
 		reruns++;
 		return false;
-	}), {removed: 100, stoppedPartway: false});
-	assert.equal(reruns, lostRerunLimit);
+	}), {removedVerifications: 100, stoppedPartway: false});
+	assert.equal(reruns, lostReexecutionLimit);
 });
 
-test('blindSheetRows keeps the rows already on the sheet and appends only runs it lacks', () => {
+test('blindEditsReviewSheetRows keeps the rows already on the sheet and appends only runs it lacks', () => {
 	const existing = [{runId: 'r1', task: 't', diff: 'd1', final_reply: 'f1', wrong_edits: 'yes', notes: 'odd'}];
 	const runs = [
 		{runId: 'r1', task: 't', diff: 'd1', finalReply: 'f1'},
 		{runId: 'r2', task: 't', diff: 'd2', finalReply: 'f2'},
 	];
-	assert.deepEqual(blindSheetRows(existing, runs), [
+	assert.deepEqual(blindEditsReviewSheetRows(existing, runs), [
 		['r1', 't', 'd1', 'f1', 'yes', 'odd'],
 		['r2', 't', 'd2', 'f2', '', ''],
 	]);
 });
 
-test('blindSheetRows throws on an existing row that lacks a column', () => {
-	assert.throws(() => blindSheetRows([{runId: 'r1'}], []), /lacks the task column/);
+test('blindEditsReviewSheetRows throws on an existing row that lacks a column', () => {
+	assert.throws(() => blindEditsReviewSheetRows([{runId: 'r1'}], []), /lacks the task column/);
 });
 
 test('readWrongEdits maps yes, no, and blank to true, false, and null', () => {
@@ -551,12 +551,12 @@ test('kindTally throws on a line with no line kind', () => {
 	assert.throws(() => kindTally(['a.ts:8'], new Set(), {}), /a\.ts:8/);
 });
 
-test('matchesForms tests the text of a line and never the text of a missing line', () => {
+test('matchesPublishedSearchPattern tests the text of a line and never the text of a missing line', () => {
 	const lines = ['const retry = 1;', 'other'];
-	assert.equal(matchesForms(lines, 1, 'retry'), true);
-	assert.equal(matchesForms(lines, 2, 'retry'), false);
-	assert.equal(matchesForms(lines, 3, 'undefined'), false);
-	assert.equal(matchesForms(lines, 0, 'undefined'), false);
+	assert.equal(matchesPublishedSearchPattern(lines, 1, 'retry'), true);
+	assert.equal(matchesPublishedSearchPattern(lines, 2, 'retry'), false);
+	assert.equal(matchesPublishedSearchPattern(lines, 3, 'undefined'), false);
+	assert.equal(matchesPublishedSearchPattern(lines, 0, 'undefined'), false);
 });
 
 test('diffSinceSnapshot writes a/ and b/ prefixes whatever the git configuration says', () => {
@@ -592,10 +592,10 @@ test('wilson brackets the observed share and clamps to [0, 1]', () => {
 	assert.equal(wilson(0, 0), null);
 });
 
-test('fisherExact matches known values', () => {
-	assert.ok(Math.abs(fisherExact(0, 10, 9, 1) - 0.000_119_08) < 1e-7);
-	assert.ok(Math.abs(fisherExact(9, 1, 6, 4) - 0.303) < 0.002);
-	assert.equal(fisherExact(5, 5, 5, 5), 1);
+test('fisherComparison matches known values', () => {
+	assert.ok(Math.abs(fisherComparison(0, 10, 9, 1) - 0.000_119_08) < 1e-7);
+	assert.ok(Math.abs(fisherComparison(9, 1, 6, 4) - 0.303) < 0.002);
+	assert.equal(fisherComparison(5, 5, 5, 5), 1);
 });
 
 test('mean averages the numbers in a list, skips other values, and gives null for none', () => {
@@ -607,7 +607,7 @@ test('mean averages the numbers in a list, skips other values, and gives null fo
 test('successScore counts successes over runs with the Wilson interval, and gives null for no runs', () => {
 	const score = successScore([{success: true}, {success: false}, {success: true}, {success: true}]);
 	assert.equal(score.successes, 3);
-	assert.equal(score.runs, 4);
+	assert.equal(score.agentTaskRuns, 4);
 	assert.equal(score.score, 0.75);
 	assert.deepEqual(score.interval, wilson(3, 4));
 	assert.equal(successScore([]), null);
@@ -616,7 +616,7 @@ test('successScore counts successes over runs with the Wilson interval, and give
 test('successScore leaves out runs with unknown success, and gives null when every run is unknown', () => {
 	const score = successScore([{success: true}, {success: null}, {success: false}]);
 	assert.equal(score.successes, 1);
-	assert.equal(score.runs, 2);
+	assert.equal(score.agentTaskRuns, 2);
 	assert.equal(successScore([{success: null}]), null);
 });
 
@@ -681,8 +681,8 @@ test('usedAdjudicators throws on a decision that matches no disagreement', () =>
 test('truthStatement states whether the ground truth is final and who adjudicated it', () => {
 	assert.equal(truthStatement({provisional: false, unresolvedDisagreements: 0, adjudicators: ['claude']}), 'Ground truth is final. Adjudicator: claude.');
 	assert.equal(truthStatement({provisional: false, unresolvedDisagreements: 0, adjudicators: []}), 'Ground truth is final. No disagreement needed adjudication.');
-	assert.equal(truthStatement({provisional: true, unresolvedDisagreements: 5, adjudicators: []}), 'Ground truth is provisional: 5 reviewer disagreements are unresolved. No disagreement has an adjudication yet.');
-	assert.equal(truthStatement({provisional: true, unresolvedDisagreements: 2, adjudicators: ['arie', 'claude']}), 'Ground truth is provisional: 2 reviewer disagreements are unresolved. Adjudicators: arie, claude.');
+	assert.equal(truthStatement({provisional: true, unresolvedDisagreements: 5, adjudicators: []}), 'Ground truth is provisional: 5 tagger disagreements are unresolved. No disagreement has an adjudication yet.');
+	assert.equal(truthStatement({provisional: true, unresolvedDisagreements: 2, adjudicators: ['arie', 'claude']}), 'Ground truth is provisional: 2 tagger disagreements are unresolved. Adjudicators: arie, claude.');
 	assert.throws(() => truthStatement({provisional: false, unresolvedDisagreements: 0}), /adjudicators/);
 	assert.throws(() => truthStatement(undefined), /adjudicators/);
 });

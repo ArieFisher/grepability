@@ -5,9 +5,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, readLimits, slotDir} from './agent-runner.mjs';
+import {checkAgentTaskRunSlotsEmpty, copyIntoAgentTaskRunSlot, agentTaskRunCopyName, loadAgent, readLimits, agentTaskRunSlotDir} from './agent-runner.mjs';
 import {agentArgs, agentEnv, agentSettings, checkAllowedTools, containedEnv} from './containment.mjs';
-import {commandTmpDir, projectRoot, publishedVersion, runChecked, toolCalls, workDir} from './lib.mjs';
+import {commandTmpDir, projectRoot, publishedCodebaseVersion, runChecked, toolCalls, workDir} from './lib.mjs';
 
 const agent = {tools: 'Read,Edit,Bash', allowedTools: ['Bash(npx tsc:*)'], maxBudgetUsd: 5};
 const reads = {denyRead: ['/project'], allowRead: ['/project/copy', '/run/tmp']};
@@ -69,25 +69,25 @@ test('runChecked gives commands the temporary folder inside the project', () => 
 	assert.deepEqual(result.stdout.trim().split('\n'), [commandTmpDir, path.join(commandTmpDir, 'npm-cache')]);
 });
 
-test('copyIntoSlot throws when the slot still holds a run copy', () => {
+test('copyIntoAgentTaskRunSlot throws when the slot still holds a run copy', () => {
 	const slot = `test-${process.pid}`;
-	fs.mkdirSync(path.join(slotDir(slot), copyName()), {recursive: true});
+	fs.mkdirSync(path.join(agentTaskRunSlotDir(slot), agentTaskRunCopyName()), {recursive: true});
 	try {
-		assert.throws(() => copyIntoSlot(slot, publishedVersion), /did not finish/);
+		assert.throws(() => copyIntoAgentTaskRunSlot(slot, publishedCodebaseVersion), /did not finish/);
 	} finally {
-		fs.rmSync(slotDir(slot), {recursive: true, force: true});
+		fs.rmSync(agentTaskRunSlotDir(slot), {recursive: true, force: true});
 	}
 });
 
-test('checkSlotsEmpty throws when any slot still holds a run copy, and passes when none does', () => {
+test('checkAgentTaskRunSlotsEmpty throws when any slot still holds a run copy, and passes when none does', () => {
 	const stale = `test-${process.pid}-stale`;
 	const empty = `test-${process.pid}-empty`;
-	fs.mkdirSync(path.join(slotDir(stale), copyName()), {recursive: true});
+	fs.mkdirSync(path.join(agentTaskRunSlotDir(stale), agentTaskRunCopyName()), {recursive: true});
 	try {
-		assert.doesNotThrow(() => checkSlotsEmpty([empty]));
-		assert.throws(() => checkSlotsEmpty([empty, stale]), /did not finish/);
+		assert.doesNotThrow(() => checkAgentTaskRunSlotsEmpty([empty]));
+		assert.throws(() => checkAgentTaskRunSlotsEmpty([empty, stale]), /did not finish/);
 	} finally {
-		fs.rmSync(slotDir(stale), {recursive: true, force: true});
+		fs.rmSync(agentTaskRunSlotDir(stale), {recursive: true, force: true});
 	}
 });
 

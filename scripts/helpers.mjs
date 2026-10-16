@@ -27,32 +27,38 @@ export const integerOption = (argv, name, fallback, minimum) => {
 	return value;
 };
 
-// Test results from TAP output: title to pass or fail. SKIP and TODO results carry no verdict.
+// Individual codebase verification results from TAP output: verification title to pass or fail. SKIP and TODO
+// results carry no verdict.
 export const parseTap = output => {
-	const tests = {};
+	const verifications = {};
 	for (const line of output.split('\n')) {
 		const match = /^(not ok|ok) \d+ - (.+?)(?: # (SKIP|TODO).*)?$/.exec(line);
 		if (match && !match[3]) {
-			tests[match[2]] = match[1] === 'ok';
+			verifications[match[2]] = match[1] === 'ok';
 		}
 	}
 
-	return tests;
+	return verifications;
 };
 
-// Renamed tests read from a run's diff, as a map from new test title to old test title. The diff must have zero
-// context lines, so each hunk holds only changed lines. In each hunk of a test file, the test declarations it
-// removes pair in order with the test declarations it adds, when the two counts are equal; a pair whose titles
-// match is no rename. `tests` is the tests section of the codebase configuration: its declaration pattern
-// captures the title a test declaration declares. A title holding a template expression is skipped, because the
-// test command prints the expression's value, and so is a title holding an escape other than a quote or a
-// backslash. A file header with a quoted path under the test directory throws, because the script reads no quoted path.
-export const renamedTitles = (diff, tests) => {
-	const declaration = new RegExp(tests.declaration);
-	const testFilePrefix = file => {
-		const relative = path.posix.relative(tests.directory, file);
-		const isTestFile = !relative.startsWith('..') && relative.endsWith(tests.extension) && !tests.skip.includes(relative);
-		return isTestFile ? relative.slice(0, -tests.extension.length).split('/').join(tests.verificationTitleSeparator) : undefined;
+// Renamed verifications read from an agent task run's diff, as a map from new verification title to old
+// verification title. The diff must have zero context lines, so each hunk holds only changed lines. In each hunk of
+// a verification file, the verification declarations it removes pair in order with the verification declarations
+// it adds, when the two counts are equal; a pair whose titles match is no renamed verification. So a removed
+// declaration pairs with an unrelated declaration that the agent added in the same hunk, and an individual codebase
+// verification that the agent both moved and renamed keeps its old title as a lost verification title.
+// `verificationSuite` is the codebase verification suite section of the codebase configuration: its declaration
+// pattern captures the title a verification declaration declares. A title holding a template expression is
+// skipped, because the suite command prints the expression's value, and so is a title holding an escape other
+// than a quote or a backslash. A file header with a quoted path under the verification folder throws, because the
+// script reads no quoted path.
+export const renamedVerificationTitles = (diff, verificationSuite) => {
+	const declaration = new RegExp(verificationSuite.declaration);
+	const separator = verificationSuite.verificationTitleSeparator;
+	const verificationFilePrefix = file => {
+		const relative = path.posix.relative(verificationSuite.directory, file);
+		const isVerificationFile = !relative.startsWith('..') && relative.endsWith(verificationSuite.extension) && !verificationSuite.skip.includes(relative);
+		return isVerificationFile ? relative.slice(0, -verificationSuite.extension.length).split('/').join(separator) : undefined;
 	};
 
 	const headerPrefix = line => {
@@ -63,13 +69,13 @@ export const renamedTitles = (diff, tests) => {
 
 		const file = /^[ab]\/(.+)$/.exec(value)?.[1];
 		if (file !== undefined) {
-			return testFilePrefix(file);
+			return verificationFilePrefix(file);
 		}
 
-		// Git quotes a path that holds an unusual character. One outside the test directory holds no test.
-		const isTestPath = /^"[ab]\/(.+)"$/.exec(value)?.[1].startsWith(`${tests.directory}/`) ?? true;
-		if (isTestPath) {
-			throw new Error(`renamedTitles cannot read the file header "${line}".`);
+		// Git quotes a path that holds an unusual character. One outside the verification folder holds no verification.
+		const isVerificationPath = /^"[ab]\/(.+)"$/.exec(value)?.[1].startsWith(`${verificationSuite.directory}/`) ?? true;
+		if (isVerificationPath) {
+			throw new Error(`renamedVerificationTitles cannot read the file header "${line}".`);
 		}
 
 		return undefined;
@@ -78,17 +84,17 @@ export const renamedTitles = (diff, tests) => {
 	const titleOf = (prefix, line) => {
 		const title = declaration.exec(line.slice(1))?.groups.title;
 		const isReadable = title !== undefined && !title.includes('${') && !/\\[^'"`\\]/.test(title);
-		return isReadable ? `${prefix}${tests.verificationTitleSeparator}${title.replaceAll(/\\(.)/g, '$1')}` : undefined;
+		return isReadable ? `${prefix}${separator}${title.replaceAll(/\\(.)/g, '$1')}` : undefined;
 	};
 
-	const renames = new Map();
+	const renamedVerifications = new Map();
 	const pairHunk = (oldPrefix, newPrefix, lines) => {
 		const removed = oldPrefix === undefined ? [] : lines.filter(line => line.startsWith('-')).map(line => titleOf(oldPrefix, line)).filter(Boolean);
 		const added = newPrefix === undefined ? [] : lines.filter(line => line.startsWith('+')).map(line => titleOf(newPrefix, line)).filter(Boolean);
 		if (removed.length === added.length) {
 			for (const [index, title] of added.entries()) {
 				if (title !== removed[index]) {
-					renames.set(title, removed[index]);
+					renamedVerifications.set(title, removed[index]);
 				}
 			}
 		}
@@ -123,43 +129,49 @@ export const renamedTitles = (diff, tests) => {
 		}
 	}
 
-	return renames;
+	return renamedVerifications;
 };
 
-// Tests that may be regressions, matched by test title within each test file (the title up to the first
-// separator). `renames` maps a renamed test's new title to its old title, so a renamed test is judged by its
-// own result. rerun: run titles of tests that passed in the baseline and fail in the run; each needs a rerun to
-// rule out flakiness. files: each test file with baseline-passing tests the run's results lack, as lostTitles
-// under their run title, so a rerun finds a renamed test under its new title.
-export const regressionCandidates = (baselineTests, runTests, renames, separator) => {
+// Individual codebase verifications that may be edit regressions, matched by verification title within each
+// verification file (the title up to the first separator). `renamedVerifications` maps a renamed verification's new
+// title to its old title, so a renamed verification is judged by its own result. An individual codebase
+// verification that fails in the pre-edit codebase verification suite results never counts. reexecute: the agent
+// task run titles of individual codebase verifications that passed in the pre-edit codebase verification suite
+// results and fail in the agent task run; each needs an individual codebase verification re-execution to rule out a
+// flaky verification. files: each verification file with passing individual codebase verifications that the agent
+// task run's results lack, as lostVerificationTitles under their agent task run title, so a re-execution finds a
+// renamed verification under its new title.
+export const editRegressionCandidates = (preEditResults, agentTaskRunResults, renamedVerifications, separator) => {
 	const fileOf = title => title.split(separator)[0];
-	const newTitles = new Map([...renames].map(([newTitle, oldTitle]) => [oldTitle, newTitle]));
-	const runTitleOf = title => newTitles.get(title) ?? title;
-	const passing = Object.entries(baselineTests).filter(([, passed]) => passed).map(([title]) => runTitleOf(title));
-	const rerun = passing.filter(title => Object.hasOwn(runTests, title) && runTests[title] !== true);
-	const lost = passing.filter(title => !Object.hasOwn(runTests, title));
-	const files = [...new Set(lost.map(fileOf))].map(file => ({file, lostTitles: lost.filter(title => fileOf(title) === file)}));
-	return {rerun, files};
+	const newVerificationTitles = new Map([...renamedVerifications].map(([newTitle, oldTitle]) => [oldTitle, newTitle]));
+	const agentTaskRunTitleOf = title => newVerificationTitles.get(title) ?? title;
+	const passing = Object.entries(preEditResults).filter(([, passed]) => passed).map(([title]) => agentTaskRunTitleOf(title));
+	const reexecute = passing.filter(title => Object.hasOwn(agentTaskRunResults, title) && agentTaskRunResults[title] !== true);
+	const lost = passing.filter(title => !Object.hasOwn(agentTaskRunResults, title));
+	const files = [...new Set(lost.map(fileOf))].map(file => ({file, lostVerificationTitles: lost.filter(title => fileOf(title) === file)}));
+	return {reexecute, files};
 };
 
-// Lost titles the scoring script reruns in one test file. A rerun of a test that hangs takes the 60-second
-// timeout of the rerun command, so a test file costs at most this many timeouts. Five reruns that all fail show
-// a test file whose tests are gone.
-export const lostRerunLimit = 5;
+// Lost verification titles the scoring script re-executes in one verification file. A re-execution of an
+// individual codebase verification that hangs takes the 60-second timeout of the re-execution command, so a
+// verification file costs at most this many timeouts. Five re-executions that all fail show a verification file
+// whose individual codebase verifications are gone.
+export const lostReexecutionLimit = 5;
 
-// Judges the lost titles of one test file, rerunning each once in order with `passesRerun(title)`. A pass
-// means the test still exists and its test file stopped partway in the run; the failed reruns before it count
-// as removed tests. When lostRerunLimit reruns have failed, or every lost title has failed, every lost title
-// counts as a removed test.
-export const judgeLostTitles = (lostTitles, passesRerun) => {
-	const limit = Math.min(lostTitles.length, lostRerunLimit);
+// Judges the lost verification titles of one verification file, re-executing each once in order with
+// `passesReexecution(title)`. A pass means the individual codebase verification still exists and its verification
+// file stopped partway in the agent task run; the failed re-executions before it count as removed verifications.
+// When lostReexecutionLimit re-executions have failed, or every lost verification title has failed, every lost
+// verification title counts as a removed verification.
+export const judgeLostVerificationTitles = (lostVerificationTitles, passesReexecution) => {
+	const limit = Math.min(lostVerificationTitles.length, lostReexecutionLimit);
 	for (let failures = 0; failures < limit; failures++) {
-		if (passesRerun(lostTitles[failures])) {
-			return {removed: failures, stoppedPartway: true};
+		if (passesReexecution(lostVerificationTitles[failures])) {
+			return {removedVerifications: failures, stoppedPartway: true};
 		}
 	}
 
-	return {removed: lostTitles.length, stoppedPartway: false};
+	return {removedVerifications: lostVerificationTitles.length, stoppedPartway: false};
 };
 
 // The first word of every sub-command in a shell command line. A sub-command ends at &&, ||, ;, |, &, or a
@@ -273,8 +285,8 @@ export const summarizeTranscript = text => {
 	};
 };
 
-// The tags in an AI reviewer's reply, as an object of item number to concept ids. The reply holds
-// flat JSON objects of arrays; if the reviewer corrects itself, the last object wins.
+// The tags in an AI tagger's reply, as an object of item number to concept ids. The reply holds
+// flat JSON objects of arrays; when the reply holds a corrected object, the function takes the last one.
 export const parseTags = reply => {
 	const objects = (reply.match(/\{[^{}]*\}/g) ?? []).flatMap(text => {
 		try {
@@ -305,26 +317,26 @@ export const acceptTags = (reply, chunkItems, conceptIds) => {
 	return tags;
 };
 
-// Stops the ground truth build on reviewer files it cannot trust: fewer than two reviewers, rows
-// that differ from the review sheet's, or a tag no concept has. Each reviewer is {name, tags}, where
+// Stops the ground truth build on tagger files it cannot trust: fewer than two taggers, rows
+// that differ from the tagging sheet's, or a tag no concept has. Each tagger is {name, tags}, where
 // tags maps a file:line key to {ids: Set of concept ids}.
-export const checkReviewers = (sheetKeys, reviewers, conceptIds) => {
-	if (reviewers.length < 2) {
-		throw new Error(`The ground truth needs at least two reviewers; found ${reviewers.length}.`);
+export const checkTaggers = (sheetKeys, taggers, conceptIds) => {
+	if (taggers.length < 2) {
+		throw new Error(`The ground truth needs at least two taggers; found ${taggers.length}.`);
 	}
 
 	const expected = new Set(sheetKeys);
-	for (const {name, tags} of reviewers) {
+	for (const {name, tags} of taggers) {
 		const missing = sheetKeys.filter(rowKey => !tags.has(rowKey));
 		const extra = [...tags.keys()].filter(rowKey => !expected.has(rowKey));
 		if (missing.length > 0 || extra.length > 0) {
-			throw new Error(`Reviewer ${name} does not match the review sheet. Missing: ${missing.slice(0, 5).join(', ') || 'none'}. Not on the sheet: ${extra.slice(0, 5).join(', ') || 'none'}.`);
+			throw new Error(`Tagger ${name} does not match the tagging sheet. Missing: ${missing.slice(0, 5).join(', ') || 'none'}. Not on the sheet: ${extra.slice(0, 5).join(', ') || 'none'}.`);
 		}
 
 		for (const [rowKey, {ids}] of tags) {
 			const unknown = [...ids].filter(id => !conceptIds.has(id));
 			if (unknown.length > 0) {
-				throw new Error(`Reviewer ${name} tags ${rowKey} with unknown concept ids: ${unknown.join(', ')}.`);
+				throw new Error(`Tagger ${name} tags ${rowKey} with unknown concept ids: ${unknown.join(', ')}.`);
 			}
 		}
 	}
@@ -377,10 +389,10 @@ export const usedAdjudicators = (decisions, usedKeys) => {
 // rebuilds it.
 export const truthStatement = ({provisional, unresolvedDisagreements, adjudicators} = {}) => {
 	if (!Array.isArray(adjudicators)) {
-		throw new Error('The ground truth state lists no adjudicators: rerun scripts/ground-truth.mjs and the scripts after it.');
+		throw new Error('The ground truth state lists no adjudicators: run scripts/ground-truth.mjs and the scripts after it again.');
 	}
 
-	const state = provisional ? `Ground truth is provisional: ${unresolvedDisagreements} reviewer disagreements are unresolved.` : 'Ground truth is final.';
+	const state = provisional ? `Ground truth is provisional: ${unresolvedDisagreements} tagger disagreements are unresolved.` : 'Ground truth is final.';
 	const none = provisional ? 'No disagreement has an adjudication yet.' : 'No disagreement needed adjudication.';
 	const decidedBy = adjudicators.length === 0
 		? none
@@ -402,25 +414,27 @@ export const shuffle = items => {
 	return result;
 };
 
-// What a run's record says about its time, cost, turns, and tool use. A cloud run reports none of these,
-// so each is null there (an empty string for the tool list) and the summary shows n/a.
-export const runMeasures = run => {
-	const counts = run.toolCounts;
+// What an agent task run's record says about its time, cost, turns, and tool use. A cloud agent task run reports
+// none of these, so each is null there (an empty string for the tool list) and the summary shows n/a. An agent
+// search tool call is a Grep or Glob tool call, or an rg or grep shell command.
+export const agentTaskRunMeasures = agentTaskRun => {
+	const counts = agentTaskRun.toolCounts;
 	return {
-		wallSeconds: typeof run.wallMs === 'number' ? Math.round(run.wallMs / 1000) : null,
-		costUsd: run.costUsd ?? null,
-		turns: run.turns ?? null,
+		wallSeconds: typeof agentTaskRun.wallMs === 'number' ? Math.round(agentTaskRun.wallMs / 1000) : null,
+		costUsd: agentTaskRun.costUsd ?? null,
+		turns: agentTaskRun.turns ?? null,
 		searchCalls: counts ? Object.entries(counts).filter(([tool]) => /^(Grep|Glob|Bash:(rg|grep))$/.test(tool)).reduce((sum, [, count]) => sum + count, 0) : null,
 		readCalls: counts ? counts.Read ?? 0 : null,
 		tools: counts ? JSON.stringify(counts) : '',
 	};
 };
 
-// The runs each cell (task and version) still needs to reach `runsPerCell`. `done(task, version)` gives the
-// number of runs the cell already has; new runs are numbered after them.
-export const missingRuns = (tasks, versionNames, runsPerCell, done) => tasks.flatMap(task => versionNames.flatMap(version => {
-	const have = done(task, version);
-	return Array.from({length: Math.max(0, runsPerCell - have)}, (_, offset) => ({task, version, index: have + offset}));
+// The agent task runs each cell (task and codebase version) still needs to reach `agentTaskRunsPerCell`.
+// `done(task, codebaseVersion)` gives the number of agent task runs the cell already has; new agent task runs are
+// numbered after them.
+export const missingAgentTaskRuns = (tasks, codebaseVersionNames, agentTaskRunsPerCell, done) => tasks.flatMap(task => codebaseVersionNames.flatMap(codebaseVersion => {
+	const have = done(task, codebaseVersion);
+	return Array.from({length: Math.max(0, agentTaskRunsPerCell - have)}, (_, offset) => ({task, codebaseVersion, index: have + offset}));
 }));
 
 // Round-robin order: every round holds one job from each cell, shuffled within the round, so each
@@ -522,8 +536,9 @@ export const mean = values => {
 	return numbers.length === 0 ? null : numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 };
 
-// Success of an edit run scored with its tests. A run with a test file that stopped partway gets null, for
-// unknown: the scoring script holds no result for the tests after the stop, and a rescore gives a verdict.
+// Success of an agent task run of an edit task, scored with its codebase verification suite execution. An agent
+// task run with a verification file that stopped partway gets null, for unknown: the scoring script holds no
+// result for the individual codebase verifications after the stop, and a rescore gives a verdict.
 export const editSuccess = ({typecheck, testRegressions, missed, hiddenTestPassed, testFilesStoppedPartway}) => {
 	if (testFilesStoppedPartway) {
 		return null;
@@ -532,23 +547,23 @@ export const editSuccess = ({typecheck, testRegressions, missed, hiddenTestPasse
 	return typecheck && testRegressions === 0 && missed === 0 && (hiddenTestPassed ?? true);
 };
 
-// Successes over a list of runs, as a count, a share, and the Wilson interval. A run with unknown success
-// (null) is left out. No runs, or only unknown ones, give null.
-export const successScore = allRuns => {
-	const runs = allRuns.filter(run => run.success !== null);
-	if (runs.length === 0) {
+// Successes over a list of agent task runs, as a count, a share, and the Wilson interval. An agent task run with
+// unknown success (null) is left out. No agent task runs, or only unknown ones, give null.
+export const successScore = allAgentTaskRuns => {
+	const agentTaskRuns = allAgentTaskRuns.filter(agentTaskRun => agentTaskRun.success !== null);
+	if (agentTaskRuns.length === 0) {
 		return null;
 	}
 
-	const successes = runs.filter(run => run.success).length;
-	return {successes, runs: runs.length, score: successes / runs.length, interval: wilson(successes, runs.length)};
+	const successes = agentTaskRuns.filter(agentTaskRun => agentTaskRun.success).length;
+	return {successes, agentTaskRuns: agentTaskRuns.length, score: successes / agentTaskRuns.length, interval: wilson(successes, agentTaskRuns.length)};
 };
 
 // A number with a fixed count of decimals for a summary table. Null gives n/a.
 export const format = (value, digits = 2) => value === null ? 'n/a' : value.toFixed(digits);
 
-// The per-kind cells of one run in agent-runs.csv: for each line kind, the lines the task holds, the true
-// positives (a find run), and the lines changed (an edit run). A cell with no number stays empty.
+// The per-kind cells of one agent task run in the agent task runs table: for each line kind, the lines the task
+// holds, the true positives (a find task), and the lines changed (an edit task). A cell with no number stays empty.
 export const lineKindCells = (row, kinds, taskKind) => kinds.flatMap(kind => {
 	const tally = row.byKind?.[kind];
 	if (!tally) {
@@ -558,43 +573,44 @@ export const lineKindCells = (row, kinds, taskKind) => kinds.flatMap(kind => {
 	return [tally.lines, taskKind === 'find' ? tally.done : '', taskKind === 'find' ? '' : tally.done];
 });
 
-// The rows of the "Lines by line kind" table for one task and version: each line kind the cell holds, its
-// lines, and the mean true positives (a find task) or lines changed (an edit task) over the runs.
-export const lineKindRows = (task, version, runs, kinds, taskKind) => kinds
-	.filter(kind => runs.some(run => run.byKind?.[kind]))
+// The rows of the "Lines by line kind" table for one task and codebase version: each line kind the cell holds, its
+// lines, and the mean true positives (a find task) or lines changed (an edit task) over the agent task runs.
+export const lineKindRows = (task, codebaseVersion, agentTaskRuns, kinds, taskKind) => kinds
+	.filter(kind => agentTaskRuns.some(agentTaskRun => agentTaskRun.byKind?.[kind]))
 	.map(kind => {
-		const tallies = runs.map(run => run.byKind?.[kind]).filter(Boolean);
+		const tallies = agentTaskRuns.map(agentTaskRun => agentTaskRun.byKind?.[kind]).filter(Boolean);
 		const done = format(mean(tallies.map(tally => tally.done)), 1);
-		return `| ${[task, version, kind, tallies[0].lines, taskKind === 'find' ? done : '', taskKind === 'find' ? '' : done].join(' | ')} |`;
+		return `| ${[task, codebaseVersion, kind, tallies[0].lines, taskKind === 'find' ? done : '', taskKind === 'find' ? '' : done].join(' | ')} |`;
 	});
 
-// One row of the agent summary table, for the runs of one task in one version; pCell is the text of the p column.
-// Runs counts every run, as the averaged columns do. The success count and its interval cover the runs with
-// known success, and show n/a when every run has unknown success.
-export const agentSummaryRow = (task, version, runs, pCell) => {
-	const score = successScore(runs);
-	const answered = runs.filter(run => run.wrongEdits !== null);
-	const flagged = answered.filter(run => run.wrongEdits).length;
+// One row of the agent summary table, for the agent task runs of one task in one codebase version; pCell is the
+// text of the Fisher comparison (p) column. The agent task runs column counts every agent task run, as the
+// averaged columns do. The success count and its interval cover the agent task runs with known success, and show
+// n/a when every agent task run has unknown success.
+export const agentSummaryRow = (task, codebaseVersion, agentTaskRuns, pCell) => {
+	const score = successScore(agentTaskRuns);
+	const answered = agentTaskRuns.filter(agentTaskRun => agentTaskRun.wrongEdits !== null);
+	const flagged = answered.filter(agentTaskRun => agentTaskRun.wrongEdits).length;
 	const cells = [
 		task,
-		version,
-		runs.length,
-		score ? `${score.successes}/${score.runs}` : 'n/a',
+		codebaseVersion,
+		agentTaskRuns.length,
+		score ? `${score.successes}/${score.agentTaskRuns}` : 'n/a',
 		score ? `${percent(score.interval.low)} to ${percent(score.interval.high)}` : 'n/a',
 		pCell,
 		`${flagged}/${answered.length}`,
-		format(mean(runs.map(run => run.recall))),
-		format(mean(runs.map(run => run.missed)), 1),
-		format(median(runs.map(run => run.wallSeconds)), 0),
-		format(mean(runs.map(run => run.costUsd))),
-		format(mean(runs.map(run => run.searchCalls)), 1),
+		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.recall))),
+		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.missed)), 1),
+		format(median(agentTaskRuns.map(agentTaskRun => agentTaskRun.wallSeconds)), 0),
+		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.costUsd))),
+		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.searchCalls)), 1),
 	];
 	return `| ${cells.join(' | ')} |`;
 };
 
-// Two-sided Fisher exact test on a 2x2 table [[a, b], [c, d]]: sums the probabilities of every
+// Two-sided Fisher comparison on a 2x2 table [[a, b], [c, d]]: sums the probabilities of every
 // table with the same margins that is at most as likely as the observed one.
-export const fisherExact = (a, b, c, d) => {
+export const fisherComparison = (a, b, c, d) => {
 	const logFactorial = n => {
 		let total = 0;
 		for (let i = 2; i <= n; i++) {
@@ -722,7 +738,7 @@ export const findScore = (listed, expected) => {
 
 // The locked lines of each concept, as a map from concept id to a set of file:line keys. Each concept in the
 // concept configuration holds a lockedLines array, empty when nothing is locked. `readLine(file, line)` returns
-// the text of one line of one version, or undefined past the end of the file. readLockedLines throws on a concept
+// the text of one line of one codebase version, or undefined past the end of the file. readLockedLines throws on a concept
 // without the array, an entry missing its file, line, text, or reason, and an entry whose text is not on its line,
 // so the search-score script stops before it scores with a misspelled key or a stale line number.
 export const readLockedLines = (concepts, readLine) => new Map(concepts.map(concept => {
@@ -749,7 +765,7 @@ export const readLockedLines = (concepts, readLine) => new Map(concepts.map(conc
 	}))];
 }));
 
-// The two parts of the search score for one concept in one version. searchRates removes the concept's locked
+// The two parts of the search score for one concept in one codebase version. searchRates removes the concept's locked
 // lines from the ground truth lines (the recall denominator), the hits (the precision denominator), and the
 // misses. A part with nothing to divide by is null.
 export const searchRates = (expected, hits, locked) => {
@@ -766,11 +782,11 @@ export const searchRates = (expected, hits, locked) => {
 	};
 };
 
-// Whether line number `line` (1-based) of a file's lines matches the concept's forms. A line past the end of
-// the file matches nothing.
-export const matchesForms = (fileLines, line, forms) => {
+// Whether line number `line` (1-based) of a file's lines matches the concept's published search pattern. A line
+// past the end of the file matches nothing.
+export const matchesPublishedSearchPattern = (fileLines, line, publishedSearchPattern) => {
 	const text = fileLines[line - 1];
-	return text !== undefined && new RegExp(forms, 'i').test(text);
+	return text !== undefined && new RegExp(publishedSearchPattern, 'i').test(text);
 };
 
 // Minimal CSV handling: quoted fields, doubled quotes.
@@ -819,46 +835,47 @@ export const fromCsv = text => {
 	return body.map(values => Object.fromEntries(header.map((name, i) => [name, values[i] ?? ''])));
 };
 
-// Columns of the blind review sheet. A person fills wrong_edits with yes or no and may add notes.
-export const blindSheetColumns = ['runId', 'task', 'diff', 'final_reply', 'wrong_edits', 'notes'];
+// Columns of the blind edits-review sheet. A person fills wrong_edits with yes or no and may add notes.
+export const blindEditsReviewSheetColumns = ['runId', 'task', 'diff', 'final_reply', 'wrong_edits', 'notes'];
 
-// Rows of the blind review sheet. Rows already on the sheet stay as written, so a rescore keeps a person's
-// answers. Runs not yet on the sheet follow in shuffled order, with no version shown.
-export const blindSheetRows = (existing, runs) => {
+// Rows of the blind edits-review sheet. Rows already on the sheet stay as written, so a rescore keeps a person's
+// answers. Agent task runs not yet on the sheet follow in shuffled order, with no codebase version shown.
+export const blindEditsReviewSheetRows = (existing, agentTaskRuns) => {
 	for (const row of existing) {
-		const missing = blindSheetColumns.find(column => !(column in row));
+		const missing = blindEditsReviewSheetColumns.find(column => !(column in row));
 		if (missing) {
-			throw new Error(`Blind review sheet: a row lacks the ${missing} column.`);
+			throw new Error(`Blind edits-review sheet: a row lacks the ${missing} column.`);
 		}
 	}
 
 	const known = new Set(existing.map(row => row.runId));
 	return [
-		...existing.map(row => blindSheetColumns.map(column => row[column])),
-		...shuffle(runs.filter(run => !known.has(run.runId))).map(run => [run.runId, run.task, run.diff, run.finalReply, '', '']),
+		...existing.map(row => blindEditsReviewSheetColumns.map(column => row[column])),
+		...shuffle(agentTaskRuns.filter(agentTaskRun => !known.has(agentTaskRun.runId))).map(agentTaskRun => [agentTaskRun.runId, agentTaskRun.task, agentTaskRun.diff, agentTaskRun.finalReply, '', '']),
 	];
 };
 
-// What a person answered on the blind review sheet: run id to true (yes), false (no), or null (not yet
-// answered). A value other than yes, no, or blank, a repeated run, or a run missing from the sheet throws.
-export const readWrongEdits = (rows, runIds) => {
+// What a person answered on the blind edits-review sheet: agent task run id to true (yes), false (no), or null
+// (not yet answered). A value other than yes, no, or blank, a repeated agent task run, or an agent task run missing
+// from the sheet throws.
+export const readWrongEdits = (rows, agentTaskRunIds) => {
 	const flags = new Map();
 	for (const row of rows) {
 		const value = row.wrong_edits.trim().toLowerCase();
 		if (!['', 'yes', 'no'].includes(value)) {
-			throw new Error(`Blind review sheet: run ${row.runId} has wrong_edits "${row.wrong_edits}", expected yes, no, or blank.`);
+			throw new Error(`Blind edits-review sheet: agent task run ${row.runId} has wrong_edits "${row.wrong_edits}", expected yes, no, or blank.`);
 		}
 
 		if (flags.has(row.runId)) {
-			throw new Error(`Blind review sheet: run ${row.runId} appears twice.`);
+			throw new Error(`Blind edits-review sheet: agent task run ${row.runId} appears twice.`);
 		}
 
 		flags.set(row.runId, value === '' ? null : value === 'yes');
 	}
 
-	const missing = runIds.filter(runId => !flags.has(runId));
+	const missing = agentTaskRunIds.filter(agentTaskRunId => !flags.has(agentTaskRunId));
 	if (missing.length > 0) {
-		throw new Error(`Blind review sheet: no row for run ${missing.join(', ')}.`);
+		throw new Error(`Blind edits-review sheet: no row for agent task run ${missing.join(', ')}.`);
 	}
 
 	return flags;

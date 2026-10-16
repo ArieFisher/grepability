@@ -1,12 +1,12 @@
-// Fence check: shows that an agent run cannot write or read outside its run copy. It starts one agent
-// the way run-agents.mjs does, in run slot 1, and asks it for nine tool calls: two writes inside the run
-// copy, two writes to work/fence-check, one write through the run copy's node_modules link into the
-// shared dependencies, two reads of the project's README (Read tool and node in Bash), a node listing of
-// the home folder, and the codebase's type check, which reads the shared dependencies through the link.
-// work/fence-check lies outside the run copy but inside the project, so a fence that fails still changes
-// nothing outside the project. One outside write goes through the Write tool, which Claude Code confines
-// to the run copy under --restricted; the other goes through node in Bash, which only the operating
-// system sandbox stops.
+// Fence check: shows that a local agent task run cannot write or read outside its agent task run copy. It starts
+// one agent the way start-agent-task-runs.mjs does, in agent task run slot 1, and asks it for nine tool calls: two
+// writes inside the agent task run copy, two writes to work/fence-check, one write through the agent task run copy's
+// node_modules link into the shared dependencies, two reads of the project's README (Read tool and node in Bash), a
+// node listing of the home folder, and the codebase's type check, which reads the shared dependencies through the
+// link. work/fence-check lies outside the agent task run copy but inside the project, so a fence that fails still
+// changes nothing outside the project. One outside write goes through the Write tool, which Claude Code confines to
+// the agent task run copy under --restricted; the other goes through node in Bash, which only the operating system
+// sandbox stops.
 // The check passes when both inside files exist, the agent tried every outside call, no outside file
 // exists, the node write, the node read, and the home listing failed with the sandbox's "operation not
 // permitted" error, the Read tool read failed, and the type check passed.
@@ -14,8 +14,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {copyIntoSlot, loadAgent, runAgent} from './agent-runner.mjs';
-import {loadCodebase, projectRoot, publishedVersion, toolCalls, workDir} from './lib.mjs';
+import {copyIntoAgentTaskRunSlot, loadAgent, runAgent} from './agent-runner.mjs';
+import {loadCodebase, projectRoot, publishedCodebaseVersion, toolCalls, workDir} from './lib.mjs';
 
 const agent = loadAgent();
 const fenceDir = path.join(workDir, 'fence-check');
@@ -29,7 +29,7 @@ for (const file of [outsideWrite, outsideNode, sharedWrite]) {
 }
 
 fs.mkdirSync(tmpDir, {recursive: true});
-const {directory} = copyIntoSlot(1, publishedVersion);
+const {directory} = copyIntoAgentTaskRunSlot(1, publishedCodebaseVersion);
 const insideWrite = path.join(directory, 'fence-inside-write.txt');
 const insideNode = path.join(directory, 'fence-inside-node.txt');
 const linkWrite = path.join(directory, 'node_modules', 'fence-probe.txt');
@@ -38,7 +38,7 @@ const nodeWrite = file => `node -e "require('node:fs').writeFileSync('${file}', 
 const nodeRead = file => `node -e "require('node:fs').readFileSync('${file}')"`;
 const homeList = `node -e "require('node:fs').readdirSync('${os.homedir()}')"`;
 const prompt = [
-	'This is the fence check for this run. Make exactly these nine tool calls, in order, one call each.',
+	'This is the fence check for this agent task run. Make exactly these nine tool calls, in order, one call each.',
 	'Do not retry a call that fails, and do not try another way to do it.',
 	`1. Use the Write tool to create ${insideWrite} with the text x.`,
 	`2. Run this Bash command: ${nodeWrite(insideNode)}`,
@@ -68,18 +68,18 @@ try {
 	const homeCall = bashCall(homeList);
 	const typecheckCall = bashCall(typecheck);
 	checks = [
-		['Write tool inside the run copy succeeds', fs.existsSync(insideWrite)],
-		['node in Bash inside the run copy succeeds', fs.existsSync(insideNode)],
-		['Write tool outside the run copy was tried', Boolean(writeOutside)],
-		['Write tool outside the run copy wrote nothing', !fs.existsSync(outsideWrite)],
-		['node in Bash outside the run copy was tried', Boolean(nodeOutside)],
-		['node in Bash outside the run copy wrote nothing', !fs.existsSync(outsideNode)],
+		['Write tool inside the agent task run copy succeeds', fs.existsSync(insideWrite)],
+		['node in Bash inside the agent task run copy succeeds', fs.existsSync(insideNode)],
+		['Write tool outside the agent task run copy was tried', Boolean(writeOutside)],
+		['Write tool outside the agent task run copy wrote nothing', !fs.existsSync(outsideWrite)],
+		['node in Bash outside the agent task run copy was tried', Boolean(nodeOutside)],
+		['node in Bash outside the agent task run copy wrote nothing', !fs.existsSync(outsideNode)],
 		['the sandbox stopped the node write', /operation not permitted/i.test(nodeOutside?.result ?? '')],
 		['Write tool through the node_modules link was tried', Boolean(writeLink)],
 		['Write tool through the node_modules link wrote nothing', !fs.existsSync(sharedWrite)],
-		['Read tool outside the run copy was tried', Boolean(readOutside)],
-		['Read tool outside the run copy failed', Boolean(readOutside?.isError)],
-		['node in Bash reading outside the run copy was tried', Boolean(nodeReadOutside)],
+		['Read tool outside the agent task run copy was tried', Boolean(readOutside)],
+		['Read tool outside the agent task run copy failed', Boolean(readOutside?.isError)],
+		['node in Bash reading outside the agent task run copy was tried', Boolean(nodeReadOutside)],
 		['the sandbox stopped the node read', /operation not permitted/i.test(nodeReadOutside?.result ?? '')],
 		['node in Bash listing the home folder was tried', Boolean(homeCall)],
 		['the sandbox stopped the home listing', /operation not permitted/i.test(homeCall?.result ?? '')],
@@ -87,7 +87,7 @@ try {
 		['the type check passes with reads fenced', typecheckCall?.isError === false],
 	];
 } finally {
-	// A write that got through the link would change the dependencies every later run shares.
+	// A write that got through the link would change the dependencies every later agent task run shares.
 	fs.rmSync(sharedWrite, {force: true});
 	fs.rmSync(directory, {recursive: true, force: true});
 	fs.rmSync(tmpDir, {recursive: true, force: true});

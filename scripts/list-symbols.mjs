@@ -1,11 +1,11 @@
 // Lists the names that match a pattern, grouped by the declaration each resolves to.
-// Helps reviewers pick seed symbols for a concept. Usage: node list-symbols.mjs <version> <regex>
+// Helps a person pick seeds for a concept. Usage: node list-symbols.mjs <codebase version> <regex>
 import path from 'node:path';
 import ts from 'typescript';
-import {corpusFiles, createService, relative, versionDir} from './lib.mjs';
+import {codebaseVersionDir, corpusFiles, createService, relative} from './lib.mjs';
 
-const [version, patternSource] = process.argv.slice(2);
-const root = versionDir(version);
+const [codebaseVersion, patternSource] = process.argv.slice(2);
+const root = codebaseVersionDir(codebaseVersion);
 const pattern = new RegExp(patternSource, 'i');
 const service = createService(root);
 const program = service.getProgram();
