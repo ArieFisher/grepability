@@ -13,27 +13,23 @@ The `comments` array holds the wording edits. Its name predates the vocabulary t
 
 ## Rules every edit follows
 
-1. **Each edit belongs to one concept.** The edit records the concept in `concept`, and its new wording matches that concept's search term.
+1. **Each edit belongs to one concept.** The edit records the concept in `concept`. Its new wording either makes that concept's search term match a ground truth line, or stops the search term from matching a line outside the ground truth.
 2. **Line numbers stay the same.** No edit adds or removes a line, so every ground truth line maps to the same line in the proposed codebase. The build stops when a file's line count changes.
 3. **Behavior stays the same.** Public option names, platform names, and error message strings stay as they are. The build compiles the proposed codebase from its own source, then requires the same type check result and the same result for every test as the published codebase. A test that both passes and fails across reruns in both versions counts as flaky and is ignored.
 4. **No edit applies to the control concept.** Its wording is already consistent, so its scores show the values that hold when nothing needs fixing.
 
 ## Where the edits come from
 
-The search-score script writes the lines each search missed in the published codebase. Each miss is a name line or a text line.
+The worklist has two parts, and the search-score script leaves locked lines out of both.
 
-- A name line miss is a candidate for a rename.
-- A text line miss is a candidate for a wording edit.
+- **Misses.** The search-score script writes the lines each search missed. A name line miss is a candidate for a rename. A text line miss is a candidate for a wording edit.
+- **Hits outside the ground truth.** A name on such a line is a candidate for a rename that drops the search term. A comment or string on such a line is a candidate for a wording edit that drops it.
 
-An edit is worth adding when the new wording makes the concept's search term match the line, within the rules above.
-
-## What the list leaves out
-
-The list covers some misses and leaves others. After each build, the search-score script writes the lines that the proposed codebase still misses, so the residue is visible. Further rewording would move the proposed codebase further from the published one, which changes what the experiment measures. Revisit the list after the first agent runs, when the agent score shows whether the residue matters.
+A line that no edit can reach within the rules above is a locked line, as the vocabulary defines it, and goes on the concept's `lockedLines` list in `config/concepts.json` with its reason. The proposed codebase scores 100% find rate and 100% term distinctiveness on every concept. A name that a rename gives the concept's search term belongs in the concept's seeds; whoever adds the seed reruns `node scripts/ground-truth.mjs`.
 
 ## Changing the list
 
 1. Edit `config/proposed-edits.json`.
 2. Run `node scripts/build-proposed.mjs`. It applies the edits, checks the line counts, compiles the proposed codebase, and compares type check and test results with the published codebase.
-3. Run `node scripts/search-score.mjs`. It writes the find rate and term distinctiveness of both versions and the remaining misses.
+3. Run `node scripts/search-score.mjs`. It writes the find rate and term distinctiveness of both versions and the remaining misses. A proposed codebase concept below 100% on either part sends the list back to step 1.
 4. Commit the list and any regenerated results together.
