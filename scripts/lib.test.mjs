@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, isNameLine, truthLines, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readLockedLines, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, isNameLine, kindTally, lineKindCells, lineKindOf, lineKindRows, readLineKinds, truthLines, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readLockedLines, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadCodebase, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -468,12 +468,83 @@ test('findScore throws when the ground truth lists no line for the concept', () 
 	assert.throws(() => findScore(new Set(['a:1']), new Set()), /no line/);
 });
 
-test('truthLines returns the sorted line keys of one concept and isNameLine tells a name line from a text line', () => {
-	const entry = {names: ['a.ts:2', 'b.ts:1'], text: ['a.ts:5'], all: ['a.ts:2', 'a.ts:5', 'b.ts:1']};
-	assert.deepEqual(truthLines(entry), ['a.ts:2', 'a.ts:5', 'b.ts:1']);
+test('truthLines returns the lines of one concept and isNameLine tells a name line from a text line', () => {
+	const entry = {lines: {'a.ts:2': ['property'], 'a.ts:5': ['comment'], 'a.ts:7': ['string'], 'b.ts:1': ['comment', 'parameter']}};
+	assert.deepEqual(truthLines(entry), ['a.ts:2', 'a.ts:5', 'a.ts:7', 'b.ts:1']);
 	assert.equal(isNameLine(entry, 'a.ts:2'), true);
 	assert.equal(isNameLine(entry, 'a.ts:5'), false);
+	assert.equal(isNameLine(entry, 'a.ts:7'), false);
+	assert.equal(isNameLine(entry, 'b.ts:1'), true);
 	assert.equal(isNameLine(entry, 'c.ts:9'), false);
+});
+
+const lineKindsDoc = [
+	'## Ground truth',
+	'',
+	'### Line kinds',
+	'',
+	'Intro text.',
+	'',
+	'| Kind | Meaning | TypeScript kinds | Retired |',
+	'|---|---|---|---|',
+	'| comment | A comment. | | remark |',
+	'| property | A property. | property, getter | attribute |',
+	'| other | Anything else. | | misc |',
+	'',
+	'## Agent runs',
+].join('\n');
+
+test('readLineKinds reads the line kinds in table order and the mapping from declaration kind to line kind', () => {
+	const {kinds, mapping} = readLineKinds(lineKindsDoc);
+	assert.deepEqual(kinds, ['comment', 'property', 'other']);
+	assert.deepEqual([...mapping], [['property', 'property'], ['getter', 'property']]);
+});
+
+test('readLineKinds throws on a missing table, a missing column, or a table with no rows', () => {
+	assert.throws(() => readLineKinds('## Ground truth\n'), /Line kinds/);
+	assert.throws(() => readLineKinds(lineKindsDoc.replace('TypeScript kinds', 'TS kinds')), /TypeScript kinds/);
+	assert.throws(() => readLineKinds(lineKindsDoc.replace(/\| (comment|property|other) \|.*\n/g, '')), /no rows/);
+});
+
+test('readLineKinds reads the line kinds table in docs/vocabulary.md', () => {
+	const {kinds, mapping} = readLineKinds(fs.readFileSync(new URL('../docs/vocabulary.md', import.meta.url), 'utf8'));
+	assert.deepEqual(kinds, ['comment', 'string', 'property', 'parameter', 'variable', 'function', 'type', 'other']);
+	assert.equal(mapping.get('enum member'), 'property');
+	assert.equal(mapping.get('local var'), 'variable');
+});
+
+test('lineKindOf maps a declaration kind to its line kind and an unlisted one to other', () => {
+	const {mapping} = readLineKinds(lineKindsDoc);
+	assert.equal(lineKindOf('getter', mapping), 'property');
+	assert.equal(lineKindOf('module', mapping), 'other');
+});
+
+test('kindTally counts the lines of each line kind and how many of them are done, counting a two-kind line under both', () => {
+	const kindsByLine = {'a.ts:1': ['comment'], 'a.ts:2': ['property'], 'a.ts:3': ['comment', 'property'], 'a.ts:4': ['string']};
+	assert.deepEqual(kindTally(['a.ts:1', 'a.ts:2', 'a.ts:3'], new Set(['a.ts:3', 'z.ts:9']), kindsByLine), {
+		comment: {lines: 2, done: 1},
+		property: {lines: 2, done: 1},
+	});
+});
+
+test('lineKindCells gives three cells per line kind and leaves found empty for an edit run and changed empty for a find run', () => {
+	const byKind = {comment: {lines: 3, done: 2}};
+	assert.deepEqual(lineKindCells({byKind}, ['comment', 'property'], 'find'), [3, 2, '', '', '', '']);
+	assert.deepEqual(lineKindCells({byKind}, ['comment', 'property'], 'edit'), [3, '', 2, '', '', '']);
+	assert.deepEqual(lineKindCells({}, ['comment'], 'find'), ['', '', '']);
+});
+
+test('lineKindRows gives one row per line kind the cell holds, with the lines and the mean found or changed', () => {
+	const runs = [{byKind: {comment: {lines: 4, done: 1}, property: {lines: 2, done: 2}}}, {byKind: {comment: {lines: 4, done: 2}, property: {lines: 2, done: 2}}}];
+	assert.deepEqual(lineKindRows('find-all', 'published', runs, ['comment', 'string', 'property'], 'find'), [
+		'| find-all | published | comment | 4 | 1.5 |  |',
+		'| find-all | published | property | 2 | 2.0 |  |',
+	]);
+	assert.deepEqual(lineKindRows('rename', 'proposed', runs.slice(0, 1), ['comment'], 'edit'), ['| rename | proposed | comment | 4 |  | 1.0 |']);
+});
+
+test('kindTally throws on a line with no line kind', () => {
+	assert.throws(() => kindTally(['a.ts:8'], new Set(), {}), /a\.ts:8/);
 });
 
 test('matchesForms tests the text of a line and never the text of a missing line', () => {

@@ -10,7 +10,7 @@
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
-import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, editSuccess, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, isNameLine, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedTitles, rerunTest, runChecked, runMeasures, splitKey, toCsv, truthLines, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, editSuccess, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, isNameLine, kindTally, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedTitles, rerunTest, runChecked, runMeasures, splitKey, toCsv, truthLines, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -62,7 +62,8 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 	const run = readJson(path.join(runDir, 'run.json'));
 	const task = config.tasks.find(item => item.id === taskId);
 	const concept = concepts.find(item => item.id === task.concept);
-	const expected = new Set(truthLines(truth.concepts[task.concept]));
+	const entry = truth.concepts[task.concept];
+	const expected = new Set(truthLines(entry));
 	const diff = fs.readFileSync(path.join(runDir, 'diff.patch'), 'utf8');
 	const row = {
 		runId,
@@ -75,6 +76,8 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 	if (task.kind === 'find') {
 		const listed = listedLines(fs.readFileSync(path.join(runDir, 'final.md'), 'utf8'), knownFiles);
 		Object.assign(row, findScore(listed, expected));
+		row.targetLines = expected.size;
+		row.byKind = kindTally(truthLines(entry), listed, entry.lines);
 	} else {
 		const changed = changedOriginalLines(diff);
 		const sourceChanged = [...changed].filter(item => inCorpus(item));
@@ -85,7 +88,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		}
 
 		const targets = new Set(task.requiredLines ?? [...expected].filter(item => {
-			if (isNameLine(truth.concepts[task.concept], item)) {
+			if (isNameLine(entry, item)) {
 				return true;
 			}
 
@@ -97,6 +100,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		}
 
 		row.targetLines = targets.size;
+		row.byKind = kindTally([...targets], changed, entry.lines);
 		row.missed = [...targets].filter(item => !changed.has(item)).length;
 		row.otherSourceLinesChanged = sourceChanged.filter(item => !expected.has(item) && !targets.has(item)).length;
 		row.recall = (targets.size - row.missed) / targets.size;
