@@ -6,11 +6,11 @@
 // Usage: node build-proposed.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {codebaseVersionDir, compareVerificationSuiteResults, compileCodebase, copyCodebase, corpusFiles, createService, positionInText, projectRoot, proposedCodebaseVersion, publishedCodebaseVersion, readJson, relative, runChecked, workDir} from './lib.mjs';
+import {codebaseVersionDir, compareVerificationSuiteResults, compileCodebase, copyCodebase, corpusFiles, createService, loadProposedEdits, positionInText, projectRoot, proposedCodebaseVersion, publishedCodebaseVersion, readJson, relative, runChecked, workDir} from './lib.mjs';
 
 const source = codebaseVersionDir(publishedCodebaseVersion);
 const target = codebaseVersionDir(proposedCodebaseVersion);
-const edits = readJson(path.join(projectRoot, 'config', 'proposed-edits.json'));
+const edits = loadProposedEdits();
 
 fs.rmSync(target, {recursive: true, force: true});
 copyCodebase(source, target);

@@ -4,13 +4,16 @@
 // parts in both codebase versions.
 // Writes results/search-score.{json,md} and results/misses-<codebase version>.csv (the lines each pattern search
 // missed; the published codebase's misses are the worklist for building the proposed codebase).
+// Below the table, search-score.md gives each concept's search patterns and the edits the proposed codebase build makes.
 // Usage: node search-score.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {codebaseVersionDir, codebaseVersions, isNameLine, key, loadCodebase, loadConcepts, percent, projectRoot, readJson, readLockedLines, runChecked, searchRates, splitKey, toCsv, truthLines, truthStatement, writeJson} from './lib.mjs';
+import {conceptWordings} from './concept-wordings.mjs';
+import {codebaseVersionDir, codebaseVersions, isNameLine, key, loadCodebase, loadConcepts, loadProposedEdits, percent, projectRoot, readJson, readLockedLines, runChecked, searchRates, splitKey, toCsv, truthLines, truthStatement, writeJson} from './lib.mjs';
 
 const {concepts} = loadConcepts();
 const {corpus} = loadCodebase();
+const wordings = conceptWordings(concepts, loadProposedEdits());
 const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
 const present = codebaseVersions.filter(codebaseVersion => fs.existsSync(path.join(codebaseVersionDir(codebaseVersion), corpus.directory)));
 if (present.length === 0) {
@@ -92,6 +95,7 @@ const markdown = [
 	header,
 	`|${'---|'.repeat(2 + (present.length * 2))}`,
 	...rows,
+	...wordings,
 	'',
 ].join('\n');
 fs.writeFileSync(path.join(resultsDir, 'search-score.md'), markdown);
