@@ -8,11 +8,12 @@
 // Usage: node ground-truth.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {checkReviewers, createService, fromCsv, inCorpus, key, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, relative, runChecked, splitKey, toCsv, usedAdjudicators, versionDir, writeJson} from './lib.mjs';
+import {checkReviewers, createService, fromCsv, inCorpus, key, lineKindOf, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, readLineKinds, relative, runChecked, splitKey, textKinds, toCsv, usedAdjudicators, versionDir, writeJson} from './lib.mjs';
 
 const root = versionDir(publishedVersion);
 const {concepts} = loadConcepts();
 const truthDir = path.join(projectRoot, 'truth');
+const lineKinds = readLineKinds(fs.readFileSync(path.join(projectRoot, 'docs', 'vocabulary.md'), 'utf8'));
 
 // The ground truth records the commit it was built on, so the checkout must be that commit.
 const checkedOut = runChecked('git', ['rev-parse', 'HEAD'], {cwd: root}).stdout.trim();
@@ -22,12 +23,24 @@ if (checkedOut !== loadCodebase().commit) {
 
 const service = createService(root);
 
-// Names in code. A seed that the type checker resolves to no reference means a wrong file, line, or name.
-const nameLines = new Map(concepts.map(concept => [concept.id, new Set()]));
+// Names in code, each line with the line kinds of the declarations its names refer to. A seed that the
+// type checker resolves to no reference means a wrong file, line, or name. Each declaration kind that the
+// line kinds table lacks is recorded with its lines, so the summary can list it.
+const nameLines = new Map(concepts.map(concept => [concept.id, new Map()]));
+const otherKinds = new Map();
+const addNameLine = (conceptId, line, declarationKind) => {
+	const kind = lineKindOf(declarationKind, lineKinds.mapping);
+	if (kind === 'other') {
+		otherKinds.set(declarationKind, (otherKinds.get(declarationKind) ?? new Set()).add(line));
+	}
+
+	const lines = nameLines.get(conceptId);
+	lines.set(line, (lines.get(line) ?? new Set()).add(kind));
+};
+
 for (const concept of concepts) {
 	for (const seed of concept.seeds) {
 		const position = positionOf(root, seed.file, seed.line, seed.name, seed.nth ?? 0);
-		nameLines.get(concept.id).add(key(seed.file, seed.line));
 		const symbols = service.findReferences(path.join(root, seed.file), position) ?? [];
 		if (symbols.every(symbol => symbol.references.length === 0)) {
 			throw new Error(`Seed ${seed.name} at ${seed.file}:${seed.line} of concept ${concept.id} resolves to no references.`);
@@ -37,8 +50,16 @@ for (const concept of concepts) {
 			for (const reference of symbol.references) {
 				const file = relative(root, reference.fileName);
 				if (inCorpus(file)) {
-					nameLines.get(concept.id).add(key(file, lineOf(root, file, reference.textSpan.start)));
+					addNameLine(concept.id, key(file, lineOf(root, file, reference.textSpan.start)), symbol.definition.kind);
 				}
+			}
+		}
+
+		// The seed line counts even when no reference lands on it; it then takes the kinds of the seed's symbols.
+		const seedLine = key(seed.file, seed.line);
+		if (!nameLines.get(concept.id).has(seedLine)) {
+			for (const symbol of symbols) {
+				addNameLine(concept.id, seedLine, symbol.definition.kind);
 			}
 		}
 	}
@@ -55,7 +76,16 @@ const reviewers = reviewerFiles.map(file => ({
 	tags: new Map(fromCsv(fs.readFileSync(path.join(truthDir, file), 'utf8'))
 		.map(row => [key(row.file, row.line), {row, ids: new Set(row.concepts.split(/\s+/).filter(Boolean))}])),
 }));
-const rowKeys = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'), 'utf8')).map(row => key(row.file, row.line));
+const sheetRows = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'), 'utf8'));
+const rowKeys = sheetRows.map(row => key(row.file, row.line));
+// A text line takes the line kind the review sheet records for it.
+const textKind = new Map(sheetRows.map(row => {
+	if (!textKinds.has(row.kind)) {
+		throw new Error(`truth/review-sheet.csv: ${row.file}:${row.line} has kind "${row.kind}"; a text line is a comment or a string.`);
+	}
+
+	return [key(row.file, row.line), row.kind];
+}));
 checkReviewers(rowKeys, reviewers, new Set(concepts.map(concept => concept.id)));
 const adjudicationFile = path.join(truthDir, 'adjudication.csv');
 const adjudication = readAdjudication(fs.existsSync(adjudicationFile)
@@ -123,22 +153,31 @@ const truth = {
 	unresolvedDisagreements: unresolved,
 	adjudicators,
 	agreement,
+	// For each concept, the script writes a map from each line, in file and line order, to its sorted line kinds.
 	concepts: Object.fromEntries(concepts.map(concept => {
-		const names = nameLines.get(concept.id);
-		const text = textLines.get(concept.id);
-		return [concept.id, {
-			names: sortKeys(names),
-			text: sortKeys(text),
-			all: sortKeys(new Set([...names, ...text])),
-		}];
+		const kindsByLine = new Map([...nameLines.get(concept.id)].map(([line, kinds]) => [line, new Set(kinds)]));
+		for (const line of textLines.get(concept.id)) {
+			kindsByLine.set(line, (kindsByLine.get(line) ?? new Set()).add(textKind.get(line)));
+		}
+
+		return [concept.id, {lines: Object.fromEntries(sortKeys(kindsByLine.keys()).map(line => [line, [...kindsByLine.get(line)].sort()]))}];
 	})),
 };
 writeJson(path.join(truthDir, 'truth.json'), truth);
 
 for (const concept of concepts) {
-	const entry = truth.concepts[concept.id];
+	const kinds = Object.values(truth.concepts[concept.id].lines);
+	const perKind = lineKinds.kinds
+		.map(kind => [kind, kinds.filter(lineKindList => lineKindList.includes(kind)).length])
+		.filter(([, count]) => count > 0)
+		.map(([kind, count]) => `${count} ${kind}`)
+		.join(', ');
 	const {kappa, disagreed} = agreement[concept.id];
-	console.log(`${concept.id}: ${entry.all.length} lines (${entry.names.length} from names, ${entry.text.length} from comments/strings); reviewer kappa ${kappa ?? 'n/a'}, ${disagreed} disagreements`);
+	console.log(`${concept.id}: ${kinds.length} lines (${perKind}); reviewer kappa ${kappa ?? 'n/a'}, ${disagreed} disagreements`);
+}
+
+for (const [declarationKind, lines] of otherKinds) {
+	console.log(`Declaration kind "${declarationKind}" maps to other on ${lines.size} lines. Add it to the line kinds table in docs/vocabulary.md if it belongs to a line kind.`);
 }
 
 console.log(truth.provisional
