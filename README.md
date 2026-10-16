@@ -39,22 +39,30 @@ For the definition of every term below, see [docs/vocabulary.md](docs/vocabulary
      
 3. **Design a measure** for grepability  
      
-   Use the harmonic mean of:  
+   `grepability` is a blend of 2 metrics:  
+
+   1. **how much of the right things did it find (AKA: recall)**  
+
+      * **Definition:** The share of the lines where the concept appears that the search returns.  
+      * **Formula:** True positives / number of lines in the ground truth  
+      * **Example:** If the concept appears on 10 lines and the search returns 9 of them, recall is **90%**.  
+      * **Interpretation**:  A high score means that the concepts are *consistently* represented across the codebase using the same terms.  
+        A low score indicates the need to refactor concept names for consistency.
+
+   2. **how much of the things it found were right (AKA: precision)**  
+
+      * **Definition:** The share of the lines the search returns that belong to the concept.  
+      * **Formula:** true positives / (true positives \+ false positives)  
+      * **Example:** If the search returns all 10 lines of the concept and 90 unrelated lines that share a word with it, precision is **10%** (10 of 100 lines returned were correct).  
+      * **Interpretation**: A high score means that the terms chosen to represent concepts **distinguish** them easily. So a concept that was represented by a broad term (such as "delay") that matches every line of the concept \- along with hundreds of unrelated lines \- would hurt the ‘grepability’ of this code base.  
+        A low score indicates the need to refactor concept names to be more distinguishing.
+
+   The two metrics are blended using the harmonic mean to yield an F1-score (which we call here `grepability` or simply ‘search score’ ) and define as: `2 * (Precision * Recall) / (Precision + Recall)`  
+   In the example shown, the `grepability` score is 18%.  
      
-4. the **share of the concept's appearances** found by a pattern search (i.e. high true positives)  
-   e.g. if the concept appears in the codebase 10 times and the pattern search finds 9 of them, this component scores 90%.  It is more ‘grepable’ than a codebase that scores 70%.  
-   A high score means that the concepts are **consistently** represented across the codebase using the same terms.  
-   A low score indicates the need to refactor concept names for consistency.  
+4. **Measure**: the grepability of the two codebases (control and ground truth)  
      
-5. the share of the pattern search results **that belong** to the concept (i.e. low false positives)  
-   e.g. in the example above, if the pattern search found 9 of the 10 instances but also found 80 ‘false positives’ \- results that were *unrelated* to the concept (but may have shared a word), then this component scores 10% (9 of 90).  
-     
-   A high score means that the terms chosen to represent concepts **distinguish** them easily. So a concept that was represented by a broad term (such as "delay") that matches every line of the concept \- along with hundreds of unrelated lines \- would hurt the ‘grepability’ of this code base.  
-   A low score indicates the need to refactor concept names to be more distinguishing.  
-     
-6. **Measure**: the grepability of the two codebases (control and ground truth)  
-     
-7. **Test** if the *same prompts* are *more effective* on a grepable codebase
+5. **Test** if the *same prompts* are *more effective* on a grepable codebase
 
 *Test approach:*
 
