@@ -11,7 +11,7 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=21"
+    "node": ">=22"
   },
   "dependencies": {
     "typescript": "^5.9.3"
