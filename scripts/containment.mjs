@@ -25,15 +25,17 @@ export const agentEnv = (env, tmpDir) => ({...containedEnv(env, tmpDir), CLAUDE_
 // - With allowUnsandboxedCommands: false, Claude Code gives a blocked command no retry outside the sandbox.
 // - With autoAllowBashIfSandboxed: false, Claude Code runs only the commands the allowedTools list matches.
 // - allowWrite adds the run's temporary folder, which holds TMPDIR and the npm cache.
+// - reads holds denyRead and allowRead (see readLimits in agent-runner.mjs). The sandbox lets a command
+//   read most of the machine by default; where the two lists overlap, the sandbox applies the narrower path.
 // - With allowLocalBinding, the sandbox lets the codebase's tests start and reach local servers. It
 //   blocks every other host.
-export const agentSettings = tmpDir => ({
+export const agentSettings = (tmpDir, reads) => ({
 	sandbox: {
 		enabled: true,
 		failIfUnavailable: true,
 		allowUnsandboxedCommands: false,
 		autoAllowBashIfSandboxed: false,
-		filesystem: {allowWrite: [tmpDir]},
+		filesystem: {allowWrite: [tmpDir], denyRead: reads.denyRead, allowRead: reads.allowRead},
 		network: {allowLocalBinding: true},
 	},
 });
@@ -53,14 +55,14 @@ export const checkAllowedTools = allowedTools => {
 // besides any managed settings. Claude Code keeps Bash because --tools lists it. Under acceptEdits, Claude
 // Code approves file edits inside the working directory without a prompt, and denies a call that would
 // prompt, because a -p run has no one to ask.
-export const agentArgs = ({prompt, model, agent, tmpDir}) => {
+export const agentArgs = ({prompt, model, agent, tmpDir, reads}) => {
 	checkAllowedTools(agent.allowedTools);
 	return [
 		'-p', prompt,
 		'--model', model,
 		'--output-format', 'stream-json', '--verbose',
 		'--restricted',
-		'--settings', JSON.stringify(agentSettings(tmpDir)),
+		'--settings', JSON.stringify(agentSettings(tmpDir, reads)),
 		'--permission-mode', 'acceptEdits',
 		'--tools', agent.tools,
 		'--allowedTools', ...agent.allowedTools,

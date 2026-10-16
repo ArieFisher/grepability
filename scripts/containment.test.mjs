@@ -4,32 +4,42 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, slotDir} from './agent-runner.mjs';
+import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, readLimits, slotDir} from './agent-runner.mjs';
 import {agentArgs, agentEnv, agentSettings, checkAllowedTools, containedEnv} from './containment.mjs';
-import {commandTmpDir, publishedVersion, runChecked, toolCalls} from './lib.mjs';
+import {commandTmpDir, projectRoot, publishedVersion, runChecked, toolCalls, workDir} from './lib.mjs';
 
 const agent = {tools: 'Read,Edit,Bash', allowedTools: ['Bash(npx tsc:*)'], maxBudgetUsd: 5};
-const argsFor = () => agentArgs({prompt: 'p', model: 'sonnet', agent, tmpDir: '/run/tmp'});
+const reads = {denyRead: ['/project'], allowRead: ['/project/copy', '/run/tmp']};
+const argsFor = () => agentArgs({prompt: 'p', model: 'sonnet', agent, tmpDir: '/run/tmp', reads});
 const valueAfter = (args, flag) => args[args.indexOf(flag) + 1];
 
 test('agentArgs starts claude in restricted mode with the sandbox settings and no settings files', () => {
 	const args = argsFor();
 	assert.ok(args.includes('--restricted'));
 	assert.ok(!args.includes('--setting-sources'));
-	assert.deepEqual(JSON.parse(valueAfter(args, '--settings')), agentSettings('/run/tmp'));
+	assert.deepEqual(JSON.parse(valueAfter(args, '--settings')), agentSettings('/run/tmp', reads));
 	assert.equal(valueAfter(args, '--permission-mode'), 'acceptEdits');
 	assert.equal(valueAfter(args, '--tools'), 'Read,Edit,Bash');
 	assert.equal(valueAfter(args, '--allowedTools'), 'Bash(npx tsc:*)');
 });
 
 test('agentSettings turns the sandbox on with no unsandboxed fallback and no automatic approval', () => {
-	const {sandbox} = agentSettings('/run/tmp');
+	const {sandbox} = agentSettings('/run/tmp', reads);
 	assert.equal(sandbox.enabled, true);
 	assert.equal(sandbox.failIfUnavailable, true);
 	assert.equal(sandbox.allowUnsandboxedCommands, false);
 	assert.equal(sandbox.autoAllowBashIfSandboxed, false);
 	assert.deepEqual(sandbox.filesystem.allowWrite, ['/run/tmp']);
+	assert.deepEqual(sandbox.filesystem.denyRead, ['/project']);
+	assert.deepEqual(sandbox.filesystem.allowRead, ['/project/copy', '/run/tmp']);
 	assert.equal(sandbox.excludedCommands, undefined);
+});
+
+test('readLimits denies reads of the project and allows the run copy, the temporary folder, and the shared dependencies', () => {
+	assert.deepEqual(readLimits('/slot/ky', '/run/tmp'), {
+		denyRead: [projectRoot],
+		allowRead: ['/slot/ky', '/run/tmp', path.join(workDir, 'deps')],
+	});
 });
 
 test('checkAllowedTools accepts Bash rules and throws on any file tool rule', () => {

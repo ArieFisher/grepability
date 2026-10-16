@@ -4,7 +4,7 @@ import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {agentArgs, agentEnv} from './containment.mjs';
-import {loadCodebase, loadTasks, makeRunCopy, versionDir, workDir} from './lib.mjs';
+import {loadCodebase, loadTasks, makeRunCopy, projectRoot, versionDir, workDir} from './lib.mjs';
 
 // The agent configuration from config/tasks.json. The time cap per run bounds a hung process, which the
 // budget cap does not: at the cap runAgent kills the agent and records the run as an error.
@@ -43,13 +43,21 @@ export const copyIntoSlot = (slot, version) => {
 	return makeRunCopy(versionDir(version), path.join(slotDir(slot), copyName()));
 };
 
+// The sandbox read lists for one run. A shell command may read nothing in the project except the run
+// copy, the run's temporary folder, and the shared dependencies that the run copy's node_modules links
+// to, so it cannot read the hidden tests, the other version, or the key.
+export const readLimits = (directory, tmpDir) => ({
+	denyRead: [projectRoot],
+	allowRead: [directory, tmpDir, path.join(workDir, 'deps')],
+});
+
 // Runs claude on one prompt in a run copy and writes its transcript to logFile. tmpDir must exist; it
 // holds the run's temporary files and npm cache. Resolves with the exit code, wall time, the start of
 // stderr, and a run error when the agent did not start or hit the time cap.
 export const runAgent = ({prompt, directory, logFile, tmpDir, model, agent}) => new Promise(resolve => {
 	const started = Date.now();
 	const log = fs.createWriteStream(logFile);
-	const child = spawn(agent.command, agentArgs({prompt, model, agent, tmpDir}), {cwd: directory, env: agentEnv(process.env, tmpDir), stdio: ['ignore', 'pipe', 'pipe']});
+	const child = spawn(agent.command, agentArgs({prompt, model, agent, tmpDir, reads: readLimits(directory, tmpDir)}), {cwd: directory, env: agentEnv(process.env, tmpDir), stdio: ['ignore', 'pipe', 'pipe']});
 	child.stdout.pipe(log, {end: false});
 	let stderr = '';
 	let runError;
