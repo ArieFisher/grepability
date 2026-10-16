@@ -393,7 +393,7 @@
 		{
 			"id": "user-abort",
 			"name": "Caller abort",
-			"definition": "The caller stopping a request through the abort signal they pass in, including merging callers' signals and checking whether the caller aborted. Excludes cancelling unused body streams and Ky's own timeout aborts.",
+			"definition": "The caller stopping a request through the abort signal they pass in, including merging callers' signals and checking whether the caller aborted. Excludes cancelling unused body streams, Ky's own timeout aborts, and checks for platform support of abort signals.",
 			"search": "abort",
 			"seeds": [
 				{
