@@ -53,6 +53,10 @@ These rules govern all prose: **chat**, **documents**, and **GitHub** (pull requ
 - **No unrequested scope.** Build the rule I asked for, not the adjacent one. A related concern should never be quietly added.
 - **Assess against this repository only.** An assessment of a file here compares it with this repository's own contents. Never diff it against another project's copy unless I ask.
 
+### Starting a conversation
+
+At the start of a conversation, before the first change, list the plan files in `docs/plans/` on `main` and report each to me: its goal in one line, and its state (not started, partly executed on a named branch, or blocked by a named prerequisite). The pull request that executes a plan deletes its file, so every plan file on `main` holds approved work that no one has finished.
+
 ### Architecture principles
 
 Apply these principles when proposing or defending design and process choices. Cite the specific principle each time so reasoning is auditable.
@@ -154,6 +158,8 @@ Branch prefixes, each with a short kebab-case label: `feature/` new behavior, `f
 Stash before switching branches with a dirty tree.
 
 Before creating a branch, fetch from `origin` with `git fetch --prune`, so remote branches deleted on GitHub leave the local list. When local `main` is behind `origin/main`, pull it first, then branch from local `main`, so local `main` never falls behind the branches made from it.
+
+Before creating a branch, also list the work waiting to reach `main`: open pull requests, and local or remote branches whose changes are not on `main`. Squash merges leave a merged branch listed by `git branch --no-merged`, so judge each listed branch by whether its diff is on `main`, not by that list alone. Report each waiting branch to me with the files it shares with the new branch's work, before creating the new branch. A new branch that edits the same files as waiting work conflicts with it at merge time, and a branch that nobody lists stays unmerged with no one aware of it.
 
 ### Review findings
 
