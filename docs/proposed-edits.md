@@ -29,5 +29,5 @@ A line that no edit can reach within the rules above is a locked line, as the vo
 
 1. Edit `config/proposed-edits.json`.
 2. Run `node scripts/build-proposed.mjs`. It applies the edits, checks the line counts, compiles the proposed codebase, and compares its type check and codebase verification suite results with the published codebase.
-3. Run `node scripts/search-score.mjs`. It writes the recall and precision of both codebase versions and the remaining misses. When a concept in the proposed codebase scores below 100% on either part, return to step 1.
+3. Run `node scripts/search-score.mjs`. It writes the recall and precision of both codebase versions, each concept's search patterns and edits, and the remaining misses. When a concept in the proposed codebase scores below 100% on either part, return to step 1.
 4. Commit the list and any regenerated results together.

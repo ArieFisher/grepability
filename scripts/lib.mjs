@@ -26,6 +26,7 @@ export const writeJson = (file, data) => {
 
 export const loadConcepts = () => readJson(path.join(projectRoot, 'config', 'concepts.json'));
 export const loadTasks = () => readJson(path.join(projectRoot, 'config', 'tasks.json'));
+export const loadProposedEdits = () => readJson(path.join(projectRoot, 'config', 'proposed-edits.json'));
 
 // Cap on the output a child process may print to a script: 256 MiB, far above the diff or codebase verification suite
 // output of the Ky codebase. A child that prints more fails with an error.
