@@ -35,7 +35,7 @@ const scored = scores.map(row => {
 
 // A failing test in one run may be a flaky timing test; regressions are listed per run for checking.
 writeJson(path.join(resultsDir, 'agent-runs.json'), scored);
-const columns = ['runId', 'version', 'task', 'success', 'findRate', 'missed', 'targetLines', 'otherSourceLinesChanged', 'testsRun', 'typecheck', 'testRegressions', 'hiddenTestPassed', 'wallSeconds', 'costUsd', 'turns', 'searchCalls', 'readCalls', 'agentError', 'wrongEdits', 'regressedTests', 'testFilesStoppedPartway', 'tools'];
+const columns = ['runId', 'version', 'task', 'success', 'recall', 'missed', 'targetLines', 'otherSourceLinesChanged', 'testsRun', 'typecheck', 'testRegressions', 'hiddenTestPassed', 'wallSeconds', 'costUsd', 'turns', 'searchCalls', 'readCalls', 'agentError', 'wrongEdits', 'regressedTests', 'testFilesStoppedPartway', 'tools'];
 fs.writeFileSync(path.join(resultsDir, 'agent-runs.csv'), toCsv([columns, ...scored.map(row => columns.map(column => row[column]))]));
 
 const skipped = scored.filter(row => row.testsRun === false).length;
@@ -46,13 +46,13 @@ const lines = [
 	'# Agent runs',
 	'',
 	truthStatement(truth),
-	skipped > 0 ? `${skipped} edit runs were scored on find rate only (--skip-tests): no type check, tests, or hidden test.` : 'Every edit run was type-checked and tested.',
+	skipped > 0 ? `${skipped} edit runs were scored on recall only (--skip-tests): no type check, tests, or hidden test.` : 'Every edit run was type-checked and tested.',
 	unanswered > 0 ? `${unanswered} of ${scored.length} runs have no wrong_edits answer on the blind review sheet.` : 'Every run has a wrong_edits answer on the blind review sheet.',
 	...(unknown > 0 ? [`${unknown} edit runs had a test file that stopped partway during scoring, so their success is unknown. This script leaves them out of the success count, the interval, and p; rescore them.`] : []),
 	'',
 	`Success shows the count and its Wilson 95% interval. p is a two-sided Fisher exact test of success between versions; with at most ${runsPerCell} runs per task and version, only large gaps fall below 0.05. Wrong edits shows the runs marked yes over the runs answered; it does not change success.`,
 	'',
-	'| Task | Version | Runs | Success | 95% interval | p (published vs proposed) | Wrong edits | Mean find rate | Mean lines missed | Median time (s) | Mean cost ($) | Mean search calls |',
+	'| Task | Version | Runs | Success | 95% interval | p (published vs proposed) | Wrong edits | Mean recall | Mean lines missed | Median time (s) | Mean cost ($) | Mean search calls |',
 	'|---|---|---|---|---|---|---|---|---|---|---|---|',
 ];
 for (const task of config.tasks) {

@@ -1,5 +1,5 @@
 // Search score: one case-insensitive ripgrep search per concept per version, scored against the ground truth.
-// Find rate: share of the concept's lines the search finds. Term distinctiveness: share of hits that belong to the concept.
+// Recall: share of the concept's lines the search returns. Precision: share of hits that belong to the concept.
 // The script removes each concept's locked lines, which the concept configuration lists, from both parts in both versions.
 // Writes results/search-score.{json,md} and results/misses-<version>.csv (the lines each search missed;
 // the published codebase's misses are the worklist for building the proposed codebase).
@@ -76,11 +76,11 @@ for (const [version, misses] of missesByVersion) {
 const rows = concepts.map(concept => {
 	const cells = present.flatMap(version => {
 		const result = results.find(item => item.version === version && item.concept === concept.id);
-		return [`${percent(result.findRate)} (${result.found}/${result.truthLines})`, percent(result.termDistinctiveness)];
+		return [`${percent(result.recall)} (${result.truePositives}/${result.truthLines})`, percent(result.precision)];
 	});
 	return `| ${concept.name} | \`${concept.search}\` | ${cells.join(' | ')} |`;
 });
-const header = `| Concept | Search | ${present.map(version => `Find rate ${version} | Term distinctiveness ${version}`).join(' | ')} |`;
+const header = `| Concept | Search | ${present.map(version => `Recall ${version} | Precision ${version}`).join(' | ')} |`;
 const markdown = [
 	'# Search score',
 	'',

@@ -458,10 +458,10 @@ test('summarizeTranscript counts every sub-command of a compound shell command',
 	assert.deepEqual(summarizeTranscript(JSON.stringify(event)).toolCounts, {'Bash:cd': 1, 'Bash:rg': 1, 'Bash:head': 1});
 });
 
-test('findScore reports the find rate, the lines missed, and success when none is missed', () => {
+test('findScore reports the recall, the lines missed, and success when none is missed', () => {
 	const expected = new Set(['a:1', 'a:2', 'a:3', 'a:4']);
-	assert.deepEqual(findScore(new Set(['a:1', 'a:2', 'a:9']), expected), {findRate: 0.5, missed: 2, success: false});
-	assert.deepEqual(findScore(new Set(['a:1', 'a:2', 'a:3', 'a:4', 'a:9']), expected), {findRate: 1, missed: 0, success: true});
+	assert.deepEqual(findScore(new Set(['a:1', 'a:2', 'a:9']), expected), {recall: 0.5, missed: 2, success: false});
+	assert.deepEqual(findScore(new Set(['a:1', 'a:2', 'a:3', 'a:4', 'a:9']), expected), {recall: 1, missed: 0, success: true});
 });
 
 test('findScore throws when the ground truth lists no line for the concept', () => {
@@ -538,12 +538,12 @@ test('successScore leaves out runs with unknown success, and gives null when eve
 });
 
 test('agentSummaryRow shows the runs, the success count, and the means of a cell', () => {
-	const runs = [{success: true, wrongEdits: false, findRate: 1, missed: 0, wallSeconds: 10, costUsd: 0.5, searchCalls: 2}, {success: false, wrongEdits: null, findRate: 0.5, missed: 2, wallSeconds: 20, costUsd: 1.5, searchCalls: 4}];
+	const runs = [{success: true, wrongEdits: false, recall: 1, missed: 0, wallSeconds: 10, costUsd: 0.5, searchCalls: 2}, {success: false, wrongEdits: null, recall: 0.5, missed: 2, wallSeconds: 20, costUsd: 1.5, searchCalls: 4}];
 	assert.equal(agentSummaryRow('rename', 'published', runs, '0.500'), '| rename | published | 2 | 1/2 | 9% to 91% | 0.500 | 0/1 | 0.75 | 1.0 | 15 | 1.00 | 3.0 |');
 });
 
 test('agentSummaryRow keeps a cell whose every run has unknown success, with n/a for the success and the interval', () => {
-	const runs = [{success: null, wrongEdits: true, findRate: 1, missed: 0, wallSeconds: 10, costUsd: 1, searchCalls: 2}];
+	const runs = [{success: null, wrongEdits: true, recall: 1, missed: 0, wallSeconds: 10, costUsd: 1, searchCalls: 2}];
 	assert.equal(agentSummaryRow('rename', 'proposed', runs, ''), '| rename | proposed | 1 | n/a | n/a |  | 1/1 | 1.00 | 0.0 | 10 | 1.00 | 2.0 |');
 });
 
@@ -614,23 +614,23 @@ test('readLockedLines maps each concept to the line keys of its locked lines', (
 	assert.deepEqual([...locked], [['user-abort', new Set(['source/a.ts:3'])], ['jitter', new Set()]]);
 });
 
-test('searchRates scores found lines against the ground truth lines and the hits', () => {
+test('searchRates scores true positives against the ground truth lines and the hits', () => {
 	const expected = new Set(['a.ts:1', 'a.ts:2', 'a.ts:3', 'a.ts:4']);
 	const hits = new Set(['a.ts:1', 'a.ts:2', 'a.ts:9']);
-	assert.deepEqual(searchRates(expected, hits, new Set()), {found: 2, truthLines: 4, hits: 3, findRate: 0.5, termDistinctiveness: 2 / 3, missed: ['a.ts:3', 'a.ts:4']});
+	assert.deepEqual(searchRates(expected, hits, new Set()), {truePositives: 2, truthLines: 4, hits: 3, recall: 0.5, precision: 2 / 3, missed: ['a.ts:3', 'a.ts:4']});
 });
 
 test('searchRates leaves locked lines out of the ground truth lines, the hits, and the misses', () => {
 	const expected = new Set(['a.ts:1', 'a.ts:2', 'a.ts:3']);
 	const hits = new Set(['a.ts:1', 'a.ts:2', 'a.ts:9']);
 	const locked = new Set(['a.ts:3', 'a.ts:9']);
-	assert.deepEqual(searchRates(expected, hits, locked), {found: 2, truthLines: 2, hits: 2, findRate: 1, termDistinctiveness: 1, missed: []});
+	assert.deepEqual(searchRates(expected, hits, locked), {truePositives: 2, truthLines: 2, hits: 2, recall: 1, precision: 1, missed: []});
 });
 
 test('searchRates gives no ratio when locked lines leave nothing to divide by', () => {
 	const rates = searchRates(new Set(['a.ts:1']), new Set(['a.ts:1']), new Set(['a.ts:1']));
-	assert.equal(rates.findRate, null);
-	assert.equal(rates.termDistinctiveness, null);
+	assert.equal(rates.recall, null);
+	assert.equal(rates.precision, null);
 });
 
 test('csv round-trips quoted fields', () => {

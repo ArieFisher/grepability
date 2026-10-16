@@ -3,18 +3,18 @@
 // script reads the files and writes the table.
 import {mean, successScore} from './helpers.mjs';
 
-// The harmonic mean of find rate and term distinctiveness. A find rate of 0 gives 0 whatever the term
-// distinctiveness, so a search with no hits scores 0. Any other missing value gives null.
-export const searchScore = (findRate, termDistinctiveness) => {
-	if (findRate === 0) {
+// The harmonic mean of recall and precision (the F1-score). A recall of 0 gives 0 whatever the precision,
+// so a search with no hits scores 0. Any other missing value gives null.
+export const searchScore = (recall, precision) => {
+	if (recall === 0) {
 		return 0;
 	}
 
-	if (findRate === null || termDistinctiveness === null) {
+	if (recall === null || precision === null) {
 		return null;
 	}
 
-	return (2 * findRate * termDistinctiveness) / (findRate + termDistinctiveness);
+	return (2 * recall * precision) / (recall + precision);
 };
 
 // Proposed minus published. A missing side gives null.
@@ -47,9 +47,9 @@ const conceptCell = (concept, version, searchResults, runs) => {
 	}
 
 	return {
-		findRate: result.findRate,
-		termDistinctiveness: result.termDistinctiveness,
-		searchScore: searchScore(result.findRate, result.termDistinctiveness),
+		recall: result.recall,
+		precision: result.precision,
+		searchScore: searchScore(result.recall, result.precision),
 		agent: successScore(runs.filter(run => run.version === version && run.concept === concept.id)),
 	};
 };
