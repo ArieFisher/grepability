@@ -1,83 +1,25 @@
 // Agent score: runs the agent on each task in each version, in fresh, identical-looking run copies.
 // Same tools and no user settings in every run. Each run gets a random id; the id-to-version key is kept in work/runs/key.json so scoring can be blind.
-// The run copy stays under work/runs/<id>/ so scoring can run its tests later.
+// Each run starts in a run slot (see agent-runner.mjs), then its run copy moves to work/runs/<id>/ so scoring can run its tests later.
 // Usage: node run-agents.mjs [--runs 10] [--tasks find-all,rename,retry-count-start] [--versions published,proposed] [--parallel 2] [--model sonnet]
-import {spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {diffSinceSnapshot, integerOption, interleave, loadCodebase, loadTasks, makeRunCopy, missingRuns, option, readJson, summarizeTranscript, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, runAgent} from './agent-runner.mjs';
+import {diffSinceSnapshot, integerOption, interleave, loadTasks, missingRuns, option, readJson, summarizeTranscript, versions, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const config = loadTasks();
+const agent = loadAgent();
 const runsPerCell = integerOption(argv, 'runs', 10, 1);
 const taskIds = option(argv, 'tasks', config.tasks.map(task => task.id).join(',')).split(',');
 const selectedVersions = option(argv, 'versions', versions.join(',')).split(',');
 const parallel = integerOption(argv, 'parallel', 2, 1);
-const model = option(argv, 'model', config.agent.model);
-// Time cap per run. The budget cap bounds spending but not a hung process. At the cap the script
-// kills the agent, records the run as an error, and goes on to the next run.
-const timeoutMinutes = config.agent.timeoutMinutes;
-if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 1) {
-	throw new Error('config/tasks.json: agent.timeoutMinutes must be a whole number of at least 1');
-}
+const model = option(argv, 'model', agent.model);
 const runsDir = path.join(workDir, 'runs');
 const keyFile = path.join(runsDir, 'key.json');
 fs.mkdirSync(runsDir, {recursive: true});
 const key = fs.existsSync(keyFile) ? readJson(keyFile) : {};
-
-// Every run copy looks the same from inside: same folder name (the repository's own), one fresh commit, shared dependencies.
-// Returns the run copy's path and the snapshot commit, which the diff after the run is taken against.
-const copyName = path.basename(loadCodebase().repository, '.git');
-const makeCopy = (version, runId) => makeRunCopy(versionDir(version), path.join(runsDir, runId, copyName));
-
-const runAgent = (task, directory, logFile) => new Promise(resolve => {
-	const args = [
-		'-p', task.prompt,
-		'--model', model,
-		'--output-format', 'stream-json', '--verbose',
-		'--permission-mode', 'acceptEdits',
-		'--tools', config.agent.tools,
-		'--allowedTools', ...config.agent.allowedTools,
-		'--setting-sources', 'project',
-		'--strict-mcp-config',
-		'--no-session-persistence',
-		'--max-budget-usd', String(config.agent.maxBudgetUsd),
-	];
-	const started = Date.now();
-	const log = fs.createWriteStream(logFile);
-	const child = spawn(config.agent.command, args, {cwd: directory, stdio: ['ignore', 'pipe', 'pipe']});
-	child.stdout.pipe(log, {end: false});
-	let stderr = '';
-	let runError;
-	child.stderr.on('data', data => {
-		stderr += data;
-	});
-	log.on('error', error => {
-		runError = `transcript write failed: ${error.message}`;
-	});
-	const timer = setTimeout(() => {
-		runError = `killed after ${timeoutMinutes} minutes`;
-		child.kill('SIGKILL');
-	}, timeoutMinutes * 60_000);
-	// The result goes out once the transcript file has closed, so the summary reads the last event.
-	let finished = false;
-	const finish = exitCode => {
-		if (finished) {
-			return;
-		}
-
-		finished = true;
-		clearTimeout(timer);
-		log.end(() => resolve({exitCode, wallMs: Date.now() - started, stderr: stderr.slice(0, 2000), runError}));
-	};
-
-	child.on('error', error => {
-		runError = `agent did not start: ${error.message}`;
-		finish(null);
-	});
-	child.on('close', code => finish(code));
-});
 
 const selectedTasks = taskIds.map(taskId => {
 	const task = config.tasks.find(item => item.id === taskId);
@@ -94,25 +36,33 @@ const jobs = missingRuns(selectedTasks, selectedVersions, runsPerCell, (task, ve
 const queue = interleave(jobs, job => `${job.task.id}|${job.version}`);
 console.log(`${queue.length} runs to do (${runsPerCell} per task per version, existing runs kept).`);
 
-const worker = async () => {
+// Each worker runs in its own slot, one run at a time.
+const slots = Array.from({length: parallel}, (_, index) => index + 1);
+checkSlotsEmpty(slots);
+const worker = async slot => {
 	while (queue.length > 0) {
 		const {task, version, index} = queue.shift();
 		const runId = crypto.randomBytes(4).toString('hex');
 		const runDir = path.join(runsDir, runId);
-		fs.mkdirSync(runDir, {recursive: true});
-		const {directory, snapshot} = makeCopy(version, runId);
+		const tmpDir = path.join(runDir, 'tmp');
+		fs.mkdirSync(tmpDir, {recursive: true});
+		const {directory: slotCopy, snapshot} = copyIntoSlot(slot, version);
+		const transcript = path.join(runDir, 'transcript.jsonl');
 		// eslint-disable-next-line no-await-in-loop
-		const outcome = await runAgent(task, directory, path.join(runDir, 'transcript.jsonl'));
-		const summary = summarizeTranscript(fs.readFileSync(path.join(runDir, 'transcript.jsonl'), 'utf8'));
+		const outcome = await runAgent({prompt: task.prompt, directory: slotCopy, logFile: transcript, tmpDir, model, agent});
+		const summary = summarizeTranscript(fs.readFileSync(transcript, 'utf8'));
 		// An agent that deleted the run copy's .git leaves no diff to take. The run is recorded as an error with an empty diff.
 		let diff = '';
 		let diffError;
 		try {
-			diff = diffSinceSnapshot(directory, snapshot);
+			diff = diffSinceSnapshot(slotCopy, snapshot);
 		} catch (error) {
 			diffError = `diff failed: ${error.message.split('\n')[0]}`;
 		}
 
+		const directory = path.join(runDir, copyName());
+		fs.renameSync(slotCopy, directory);
+		fs.rmSync(tmpDir, {recursive: true, force: true});
 		fs.writeFileSync(path.join(runDir, 'diff.patch'), diff);
 		fs.writeFileSync(path.join(runDir, 'final.md'), summary.finalText);
 		const runError = [outcome.runError, diffError].filter(Boolean).join('; ') || undefined;
@@ -123,5 +73,5 @@ const worker = async () => {
 	}
 };
 
-await Promise.all(Array.from({length: parallel}, worker));
+await Promise.all(slots.map(slot => worker(slot)));
 console.log('Done. Next: node scripts/score-agents.mjs');
