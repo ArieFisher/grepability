@@ -46,7 +46,7 @@ One term per concept, used in every document, comment, test name, commit message
 
 ### Line kinds
 
-The TypeScript kinds column is the machine form of the mapping from a declaration kind to a line kind. A declaration kind the column lacks maps to `other`.
+The TypeScript kinds column is the machine form of the mapping from a declaration kind to a line kind. A declaration kind the column lacks maps to `other`. The ground truth script and the summary script read this table, and stop when the heading, the Kind or TypeScript kinds column, or the rows are missing. The ground truth script prints each declaration kind it mapped to `other`, with its line count.
 
 | Kind | Meaning | TypeScript kinds | Retired |
 |---|---|---|---|
