@@ -228,12 +228,12 @@ test('interleave puts one job from every cell in each round', () => {
 
 test('agentTaskRunMeasures reads time, cost, turns, and tool counts of a local run', () => {
 	const run = {wallMs: 90_400, costUsd: 0.5, turns: 7, toolCounts: {Read: 3, Grep: 2, 'Bash:rg': 1, 'Bash:cat': 4}};
-	assert.deepEqual(agentTaskRunMeasures(run), {wallSeconds: 90, costUsd: 0.5, turns: 7, searchCalls: 3, readCalls: 3, tools: JSON.stringify(run.toolCounts)});
+	assert.deepEqual(agentTaskRunMeasures(run), {wallSeconds: 90, costUsd: 0.5, turns: 7, agentSearchToolCalls: 3, readCalls: 3, tools: JSON.stringify(run.toolCounts)});
 });
 
 test('agentTaskRunMeasures gives null for what a cloud run does not report', () => {
 	const run = {wallMs: null, costUsd: null, turns: null, toolCounts: null};
-	assert.deepEqual(agentTaskRunMeasures(run), {wallSeconds: null, costUsd: null, turns: null, searchCalls: null, readCalls: null, tools: ''});
+	assert.deepEqual(agentTaskRunMeasures(run), {wallSeconds: null, costUsd: null, turns: null, agentSearchToolCalls: null, readCalls: null, tools: ''});
 });
 
 test('missingAgentTaskRuns lists the runs each cell still needs, numbered after the runs done', () => {
@@ -407,10 +407,10 @@ test('judgeLostVerificationTitles stops after the lost rerun limit of failed rer
 });
 
 test('blindEditsReviewSheetRows keeps the rows already on the sheet and appends only runs it lacks', () => {
-	const existing = [{runId: 'r1', task: 't', diff: 'd1', final_reply: 'f1', wrong_edits: 'yes', notes: 'odd'}];
+	const existing = [{agentTaskRunId: 'r1', task: 't', diff: 'd1', final_reply: 'f1', wrong_edits: 'yes', notes: 'odd'}];
 	const runs = [
-		{runId: 'r1', task: 't', diff: 'd1', finalReply: 'f1'},
-		{runId: 'r2', task: 't', diff: 'd2', finalReply: 'f2'},
+		{agentTaskRunId: 'r1', task: 't', diff: 'd1', finalReply: 'f1'},
+		{agentTaskRunId: 'r2', task: 't', diff: 'd2', finalReply: 'f2'},
 	];
 	assert.deepEqual(blindEditsReviewSheetRows(existing, runs), [
 		['r1', 't', 'd1', 'f1', 'yes', 'odd'],
@@ -419,18 +419,18 @@ test('blindEditsReviewSheetRows keeps the rows already on the sheet and appends 
 });
 
 test('blindEditsReviewSheetRows throws on an existing row that lacks a column', () => {
-	assert.throws(() => blindEditsReviewSheetRows([{runId: 'r1'}], []), /lacks the task column/);
+	assert.throws(() => blindEditsReviewSheetRows([{agentTaskRunId: 'r1'}], []), /lacks the task column/);
 });
 
 test('readWrongEdits maps yes, no, and blank to true, false, and null', () => {
-	const rows = [{runId: 'a', wrong_edits: 'Yes'}, {runId: 'b', wrong_edits: ' no '}, {runId: 'c', wrong_edits: ''}];
+	const rows = [{agentTaskRunId: 'a', wrong_edits: 'Yes'}, {agentTaskRunId: 'b', wrong_edits: ' no '}, {agentTaskRunId: 'c', wrong_edits: ''}];
 	assert.deepEqual([...readWrongEdits(rows, ['a', 'b', 'c'])], [['a', true], ['b', false], ['c', null]]);
 });
 
 test('readWrongEdits throws on another value, a repeated run, or a run missing from the sheet', () => {
-	assert.throws(() => readWrongEdits([{runId: 'a', wrong_edits: 'maybe'}], ['a']), /maybe/);
-	assert.throws(() => readWrongEdits([{runId: 'a', wrong_edits: ''}, {runId: 'a', wrong_edits: ''}], ['a']), /twice/);
-	assert.throws(() => readWrongEdits([{runId: 'a', wrong_edits: ''}], ['a', 'b']), /b/);
+	assert.throws(() => readWrongEdits([{agentTaskRunId: 'a', wrong_edits: 'maybe'}], ['a']), /maybe/);
+	assert.throws(() => readWrongEdits([{agentTaskRunId: 'a', wrong_edits: ''}, {agentTaskRunId: 'a', wrong_edits: ''}], ['a']), /twice/);
+	assert.throws(() => readWrongEdits([{agentTaskRunId: 'a', wrong_edits: ''}], ['a', 'b']), /b/);
 });
 
 test('median averages the two middle values of an even count and skips non-numbers', () => {
@@ -621,29 +621,29 @@ test('successScore leaves out runs with unknown success, and gives null when eve
 });
 
 test('agentSummaryRow shows the runs, the success count, and the means of a cell', () => {
-	const runs = [{success: true, wrongEdits: false, recall: 1, missed: 0, wallSeconds: 10, costUsd: 0.5, searchCalls: 2}, {success: false, wrongEdits: null, recall: 0.5, missed: 2, wallSeconds: 20, costUsd: 1.5, searchCalls: 4}];
+	const runs = [{success: true, wrongEdits: false, recall: 1, missed: 0, wallSeconds: 10, costUsd: 0.5, agentSearchToolCalls: 2}, {success: false, wrongEdits: null, recall: 0.5, missed: 2, wallSeconds: 20, costUsd: 1.5, agentSearchToolCalls: 4}];
 	assert.equal(agentSummaryRow('rename', 'published', runs, '0.500'), '| rename | published | 2 | 1/2 | 9% to 91% | 0.500 | 0/1 | 0.75 | 1.0 | 15 | 1.00 | 3.0 |');
 });
 
 test('agentSummaryRow keeps a cell whose every run has unknown success, with n/a for the success and the interval', () => {
-	const runs = [{success: null, wrongEdits: true, recall: 1, missed: 0, wallSeconds: 10, costUsd: 1, searchCalls: 2}];
+	const runs = [{success: null, wrongEdits: true, recall: 1, missed: 0, wallSeconds: 10, costUsd: 1, agentSearchToolCalls: 2}];
 	assert.equal(agentSummaryRow('rename', 'proposed', runs, ''), '| rename | proposed | 1 | n/a | n/a |  | 1/1 | 1.00 | 0.0 | 10 | 1.00 | 2.0 |');
 });
 
-const scoredEdit = {typecheck: true, testRegressions: 0, missed: 0, testFilesStoppedPartway: ''};
+const scoredEdit = {typecheck: true, editRegressions: 0, missed: 0, verificationFilesStoppedPartway: ''};
 
 test('editSuccess is true when the type check passes and nothing regressed, was missed, or failed the hidden test', () => {
 	assert.equal(editSuccess(scoredEdit), true);
-	assert.equal(editSuccess({...scoredEdit, hiddenTestPassed: true}), true);
-	assert.equal(editSuccess({...scoredEdit, hiddenTestPassed: false}), false);
+	assert.equal(editSuccess({...scoredEdit, withheldAcceptanceTestPassed: true}), true);
+	assert.equal(editSuccess({...scoredEdit, withheldAcceptanceTestPassed: false}), false);
 	assert.equal(editSuccess({...scoredEdit, typecheck: false}), false);
-	assert.equal(editSuccess({...scoredEdit, testRegressions: 1}), false);
+	assert.equal(editSuccess({...scoredEdit, editRegressions: 1}), false);
 	assert.equal(editSuccess({...scoredEdit, missed: 1}), false);
 });
 
 test('editSuccess is unknown for a run with a test file that stopped partway, whatever else it scored', () => {
-	assert.equal(editSuccess({...scoredEdit, testFilesStoppedPartway: 'retry'}), null);
-	assert.equal(editSuccess({...scoredEdit, missed: 1, testFilesStoppedPartway: 'retry'}), null);
+	assert.equal(editSuccess({...scoredEdit, verificationFilesStoppedPartway: 'retry'}), null);
+	assert.equal(editSuccess({...scoredEdit, missed: 1, verificationFilesStoppedPartway: 'retry'}), null);
 });
 
 const adjudicationRows = [

@@ -1,6 +1,6 @@
 // AI stand-in tagger: tags the tagging sheet, one chunk per fresh session, with no tools.
 // Each execution of the script is independent; run it twice with different names to get two taggers. A person can
-// replace either file by tagging truth/review-sheet.csv by hand.
+// replace either file by tagging truth/tagging-sheet.csv by hand.
 // Each sheet line is shown with the source lines around it (--context, default 3 each side), so the
 // tagger sees which option or function a comment belongs to rather than the line on its own.
 // Usage: node ai-tagger.mjs <tagger-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]
@@ -23,12 +23,12 @@ const parallel = integerOption(argv, 'parallel', 4, 1);
 const contextLines = integerOption(argv, 'context', 3, 0);
 // A hand-tagged file under this name would be lost to a second execution, so an existing file stops the script.
 // Remove the file, or pick another tagger name, to run the script again.
-const output = path.join(projectRoot, 'truth', `reviewer-${name}.csv`);
+const output = path.join(projectRoot, 'truth', `tagger-${name}.csv`);
 if (fs.existsSync(output)) {
 	throw new Error(`${output} exists. Remove it or pick another tagger name.`);
 }
 const {concepts} = loadConcepts();
-const rows = fromCsv(fs.readFileSync(path.join(projectRoot, 'truth', 'review-sheet.csv'), 'utf8'));
+const rows = fromCsv(fs.readFileSync(path.join(projectRoot, 'truth', 'tagging-sheet.csv'), 'utf8'));
 const conceptText = concepts.map(concept => `- ${concept.id}: ${concept.name}. ${concept.definition}`).join('\n');
 
 // Source text of the published codebase, read once per file, for the context around each sheet line.

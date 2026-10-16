@@ -97,8 +97,8 @@ for (const [label, passed] of checks) {
 	console.log(`${passed ? 'PASS' : 'FAIL'}  ${label}`);
 }
 
-if (outcome.exitCode !== 0 || outcome.runError) {
-	console.log(`claude exit ${outcome.exitCode}${outcome.runError ? `, ${outcome.runError}` : ''}\n${outcome.stderr}`);
+if (outcome.exitCode !== 0 || outcome.agentTaskRunError) {
+	console.log(`claude exit ${outcome.exitCode}${outcome.agentTaskRunError ? `, ${outcome.agentTaskRunError}` : ''}\n${outcome.stderr}`);
 }
 
 console.log(`Transcript: ${logFile}`);

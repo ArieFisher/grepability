@@ -13,7 +13,7 @@ import {codebaseVersionDir, diffSinceSnapshot, loadCodebase, loadTasks, makeAgen
 
 const config = loadTasks();
 const cloud = loadCloud();
-const agentTaskRunsDir = path.join(workDir, 'runs');
+const agentTaskRunsDir = path.join(workDir, 'agent-task-runs');
 const keyFile = path.join(agentTaskRunsDir, 'key.json');
 const firedFile = path.join(agentTaskRunsDir, 'cloud-fired.json');
 if (!fs.existsSync(firedFile)) {
@@ -30,7 +30,7 @@ if (pending.length === 0) {
 
 const {repositories} = loadRoutines([]);
 const cacheOf = codebaseVersion => path.join(workDir, 'cloud', `${codebaseVersion}.git`);
-for (const codebaseVersion of new Set(pending.map(([, entry]) => entry.version))) {
+for (const codebaseVersion of new Set(pending.map(([, entry]) => entry.codebaseVersion))) {
 	fetchCloudAgentTaskRunBranches(cacheOf(codebaseVersion), repositories[codebaseVersion]);
 }
 
@@ -40,7 +40,7 @@ let collected = 0;
 let waiting = 0;
 for (const [agentTaskRunId, entry] of pending) {
 	const task = config.tasks.find(item => item.id === entry.task);
-	const branch = readCloudAgentTaskRunBranch(cacheOf(entry.version), cloud, agentTaskRunId);
+	const branch = readCloudAgentTaskRunBranch(cacheOf(entry.codebaseVersion), cloud, agentTaskRunId);
 	const ageMs = Date.now() - Date.parse(entry.firedAt);
 	if (!branch && ageMs < pendingLimitMs) {
 		waiting++;
@@ -50,7 +50,7 @@ for (const [agentTaskRunId, entry] of pending) {
 
 	const agentTaskRunDir = path.join(agentTaskRunsDir, agentTaskRunId);
 	fs.mkdirSync(agentTaskRunDir, {recursive: true});
-	const {directory, snapshot} = makeAgentTaskRunCopy(codebaseVersionDir(entry.version), path.join(agentTaskRunDir, agentTaskRunCopyName));
+	const {directory, snapshot} = makeAgentTaskRunCopy(codebaseVersionDir(entry.codebaseVersion), path.join(agentTaskRunDir, agentTaskRunCopyName));
 	const errors = [];
 	if (branch) {
 		applyDiff(directory, branch.diff);
@@ -65,11 +65,11 @@ for (const [agentTaskRunId, entry] of pending) {
 	fs.writeFileSync(path.join(agentTaskRunDir, 'diff.patch'), diffSinceSnapshot(directory, snapshot));
 	fs.writeFileSync(path.join(agentTaskRunDir, 'final.md'), branch?.reply ?? '');
 	writeJson(path.join(agentTaskRunDir, 'run.json'), {
-		runId: agentTaskRunId, task: entry.task, directory, snapshot, cloud: true, sessionId: entry.sessionId, sessionUrl: entry.sessionUrl,
+		agentTaskRunId, task: entry.task, directory, snapshot, cloud: true, sessionId: entry.sessionId, sessionUrl: entry.sessionUrl,
 		model: null, exitCode: 0, wallMs: null, durationMs: null, costUsd: null, turns: null, toolCounts: null, isError: false,
-		runError: errors.join('; ') || undefined,
+		agentTaskRunError: errors.join('; ') || undefined,
 	});
-	key[agentTaskRunId] = {version: entry.version, task: entry.task, index: entry.index};
+	key[agentTaskRunId] = {codebaseVersion: entry.codebaseVersion, task: entry.task, index: entry.index};
 	writeJson(keyFile, key);
 	collected++;
 	console.log(`${agentTaskRunId}: ${entry.task} collected${errors.length > 0 ? `, ${errors.join('; ')}` : ''}.`);

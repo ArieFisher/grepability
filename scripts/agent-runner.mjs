@@ -66,15 +66,15 @@ export const runAgent = ({prompt, directory, logFile, tmpDir, model, agent}) => 
 	const child = spawn(agent.command, agentArgs({prompt, model, agent, tmpDir, reads: readLimits(directory, tmpDir)}), {cwd: directory, env: agentEnv(process.env, tmpDir), stdio: ['ignore', 'pipe', 'pipe']});
 	child.stdout.pipe(log, {end: false});
 	let stderr = '';
-	let runError;
+	let agentTaskRunError;
 	child.stderr.on('data', data => {
 		stderr += data;
 	});
 	log.on('error', error => {
-		runError = `transcript write failed: ${error.message}`;
+		agentTaskRunError = `transcript write failed: ${error.message}`;
 	});
 	const timer = setTimeout(() => {
-		runError = `killed after ${agent.timeoutMinutes} minutes`;
+		agentTaskRunError = `killed after ${agent.timeoutMinutes} minutes`;
 		child.kill('SIGKILL');
 	}, agent.timeoutMinutes * 60_000);
 	// The result goes out once the transcript file has closed, so a reader of the transcript sees the last event.
@@ -86,11 +86,11 @@ export const runAgent = ({prompt, directory, logFile, tmpDir, model, agent}) => 
 
 		finished = true;
 		clearTimeout(timer);
-		log.end(() => resolve({exitCode, wallMs: Date.now() - started, stderr: stderr.slice(0, 2000), runError}));
+		log.end(() => resolve({exitCode, wallMs: Date.now() - started, stderr: stderr.slice(0, 2000), agentTaskRunError}));
 	};
 
 	child.on('error', error => {
-		runError = `agent did not start: ${error.message}`;
+		agentTaskRunError = `agent did not start: ${error.message}`;
 		finish(null);
 	});
 	child.on('close', code => finish(code));

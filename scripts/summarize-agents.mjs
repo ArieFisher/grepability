@@ -2,8 +2,9 @@
 // Run it after a person has filled wrong_edits on the blind edits-review sheet. The script reads that sheet first
 // and the key, which maps agent task run ids to codebase versions, last; nothing before that read holds a codebase
 // version.
-// Reads work/runs/scores.json (from score-agents.mjs), results/blind-review.csv, and work/runs/key.json.
-// Writes results/agent-runs.json, results/agent-runs.csv, and results/agent-summary.md.
+// Reads work/agent-task-runs/scores.json (from score-agents.mjs), results/blind-edits-review.csv, and
+// work/agent-task-runs/key.json.
+// Writes results/agent-task-runs.json, results/agent-task-runs.csv, and results/agent-summary.md.
 // Usage: node summarize-agents.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,10 +14,10 @@ const config = loadTasks();
 const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
 const {kinds} = readLineKinds(fs.readFileSync(path.join(projectRoot, 'docs', 'vocabulary.md'), 'utf8'));
 const taskKind = taskId => config.tasks.find(task => task.id === taskId).kind;
-const agentTaskRunsDir = path.join(workDir, 'runs');
+const agentTaskRunsDir = path.join(workDir, 'agent-task-runs');
 const resultsDir = path.join(projectRoot, 'results');
 const scoresFile = path.join(agentTaskRunsDir, 'scores.json');
-const sheetFile = path.join(resultsDir, 'blind-review.csv');
+const sheetFile = path.join(resultsDir, 'blind-edits-review.csv');
 for (const file of [scoresFile, sheetFile]) {
 	if (!fs.existsSync(file)) {
 		throw new Error(`Missing ${file}: run scripts/score-agents.mjs first.`);
@@ -24,30 +25,30 @@ for (const file of [scoresFile, sheetFile]) {
 }
 
 const scores = readJson(scoresFile);
-const wrongEdits = readWrongEdits(fromCsv(fs.readFileSync(sheetFile, 'utf8')), scores.map(row => row.runId));
+const wrongEdits = readWrongEdits(fromCsv(fs.readFileSync(sheetFile, 'utf8')), scores.map(row => row.agentTaskRunId));
 
 const agentTaskRunKey = readJson(path.join(agentTaskRunsDir, 'key.json'));
 const scored = scores.map(row => {
-	const entry = agentTaskRunKey[row.runId];
-	if (!entry || !codebaseVersions.includes(entry.version)) {
-		throw new Error(`Agent task run ${row.runId}: the key holds no known codebase version (expected one of ${codebaseVersions.join(', ')}).`);
+	const entry = agentTaskRunKey[row.agentTaskRunId];
+	if (!entry || !codebaseVersions.includes(entry.codebaseVersion)) {
+		throw new Error(`Agent task run ${row.agentTaskRunId}: the key holds no known codebase version (expected one of ${codebaseVersions.join(', ')}).`);
 	}
 
-	return {runId: row.runId, version: entry.version, ...row, wrongEdits: wrongEdits.get(row.runId)};
+	return {agentTaskRunId: row.agentTaskRunId, codebaseVersion: entry.codebaseVersion, ...row, wrongEdits: wrongEdits.get(row.agentTaskRunId)};
 });
 
 // A failing individual codebase verification in one agent task run may be a flaky timing verification; the table
 // lists the edit regressions of each agent task run for checking.
-writeJson(path.join(resultsDir, 'agent-runs.json'), scored);
-const columns = ['runId', 'version', 'task', 'success', 'recall', 'missed', 'targetLines', 'otherSourceLinesChanged', 'testsRun', 'typecheck', 'testRegressions', 'hiddenTestPassed', 'wallSeconds', 'costUsd', 'turns', 'searchCalls', 'readCalls', 'agentError', 'wrongEdits', 'regressedTests', 'testFilesStoppedPartway', 'tools'];
+writeJson(path.join(resultsDir, 'agent-task-runs.json'), scored);
+const columns = ['agentTaskRunId', 'codebaseVersion', 'task', 'success', 'recall', 'missed', 'targetLines', 'otherSourceLinesChanged', 'verificationSuiteExecuted', 'typecheck', 'editRegressions', 'withheldAcceptanceTestPassed', 'wallSeconds', 'costUsd', 'turns', 'agentSearchToolCalls', 'readCalls', 'agentError', 'wrongEdits', 'regressedVerifications', 'verificationFilesStoppedPartway', 'tools'];
 // Three columns per line kind, in the line kinds table's order: the lines the task holds, true positives, and lines changed.
 const kindColumns = kinds.flatMap(kind => [`${kind}Lines`, `${kind}TruePositives`, `${kind}Changed`]);
-fs.writeFileSync(path.join(resultsDir, 'agent-runs.csv'), toCsv([[...columns, ...kindColumns], ...scored.map(row => [...columns.map(column => row[column]), ...lineKindCells(row, kinds, taskKind(row.task))])]));
+fs.writeFileSync(path.join(resultsDir, 'agent-task-runs.csv'), toCsv([[...columns, ...kindColumns], ...scored.map(row => [...columns.map(column => row[column]), ...lineKindCells(row, kinds, taskKind(row.task))])]));
 
-const skipped = scored.filter(row => row.testsRun === false).length;
+const skipped = scored.filter(row => row.verificationSuiteExecuted === false).length;
 const unanswered = scored.filter(row => row.wrongEdits === null).length;
 const unknown = scored.filter(row => row.success === null).length;
-const agentTaskRunsPerCell = Math.max(...config.tasks.flatMap(task => codebaseVersions.map(codebaseVersion => scored.filter(row => row.task === task.id && row.version === codebaseVersion).length)));
+const agentTaskRunsPerCell = Math.max(...config.tasks.flatMap(task => codebaseVersions.map(codebaseVersion => scored.filter(row => row.task === task.id && row.codebaseVersion === codebaseVersion).length)));
 const lines = [
 	'# Agent task runs',
 	'',
@@ -62,7 +63,7 @@ const lines = [
 	'|---|---|---|---|---|---|---|---|---|---|---|---|',
 ];
 for (const task of config.tasks) {
-	const byCodebaseVersion = Object.fromEntries(codebaseVersions.map(codebaseVersion => [codebaseVersion, scored.filter(row => row.task === task.id && row.version === codebaseVersion)]));
+	const byCodebaseVersion = Object.fromEntries(codebaseVersions.map(codebaseVersion => [codebaseVersion, scored.filter(row => row.task === task.id && row.codebaseVersion === codebaseVersion)]));
 	const scores = Object.fromEntries(codebaseVersions.map(codebaseVersion => [codebaseVersion, successScore(byCodebaseVersion[codebaseVersion])]));
 	const published = scores[publishedCodebaseVersion];
 	const proposed = scores[proposedCodebaseVersion];
@@ -87,7 +88,7 @@ lines.push(
 );
 for (const task of config.tasks) {
 	for (const codebaseVersion of codebaseVersions) {
-		lines.push(...lineKindRows(task.id, codebaseVersion, scored.filter(row => row.task === task.id && row.version === codebaseVersion), kinds, task.kind));
+		lines.push(...lineKindRows(task.id, codebaseVersion, scored.filter(row => row.task === task.id && row.codebaseVersion === codebaseVersion), kinds, task.kind));
 	}
 }
 

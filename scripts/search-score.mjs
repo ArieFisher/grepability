@@ -56,10 +56,10 @@ for (const codebaseVersion of present) {
 		const expected = new Set(truthLines(truth.concepts[concept.id]));
 		const {missed, ...rates} = searchRates(expected, patternSearch(root, concept.proposedSearchPattern), lockedByConcept.get(concept.id));
 		results.push({
-			version: codebaseVersion,
+			codebaseVersion,
 			concept: concept.id,
 			control: Boolean(concept.control),
-			search: concept.proposedSearchPattern,
+			proposedSearchPattern: concept.proposedSearchPattern,
 			...rates,
 		});
 		for (const line of missed) {
@@ -77,7 +77,7 @@ for (const [codebaseVersion, misses] of missesByCodebaseVersion) {
 
 const rows = concepts.map(concept => {
 	const cells = present.flatMap(codebaseVersion => {
-		const result = results.find(item => item.version === codebaseVersion && item.concept === concept.id);
+		const result = results.find(item => item.codebaseVersion === codebaseVersion && item.concept === concept.id);
 		return [`${percent(result.recall)} (${result.truePositives}/${result.truthLines})`, percent(result.precision)];
 	});
 	return `| ${concept.name} | \`${concept.proposedSearchPattern}\` | ${cells.join(' | ')} |`;

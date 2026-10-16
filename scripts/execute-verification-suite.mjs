@@ -15,7 +15,7 @@ if (!target) {
 }
 
 const root = codebaseVersions.includes(target) ? codebaseVersionDir(target) : path.resolve(target);
-const output = outputArgument ? path.resolve(outputArgument) : path.join(workDir, `tests-${path.basename(root)}.json`);
+const output = outputArgument ? path.resolve(outputArgument) : path.join(workDir, `pre-edit-results-${path.basename(root)}.json`);
 const codebase = loadCodebase();
 
 const executeCommand = ([command, ...args]) => {
@@ -43,7 +43,7 @@ const result = {
 	typecheckErrors: typecheck.ok ? '' : typecheck.output.slice(0, 4000),
 	passed,
 	failed: Object.keys(verifications).length - passed,
-	tests: verifications,
+	verifications,
 };
 writeJson(output, result);
 console.log(`${path.basename(root)}: typecheck ${typecheck.ok ? 'ok' : 'FAILED'}, ${passed} passed, ${result.failed} failed -> ${output}`);

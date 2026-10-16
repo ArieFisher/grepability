@@ -86,7 +86,7 @@ compileCodebase(target);
 // execute-verification-suite.mjs exits 1 after a failed type check and still writes its result, so only a missing
 // file is a failure.
 const executeVerificationSuite = codebaseVersion => {
-	const resultPath = path.join(workDir, `tests-${codebaseVersion}.json`);
+	const resultPath = path.join(workDir, `pre-edit-results-${codebaseVersion}.json`);
 	fs.rmSync(resultPath, {force: true});
 	runChecked('node', [path.join(projectRoot, 'scripts', 'execute-verification-suite.mjs'), codebaseVersion], {stdio: 'inherit'});
 	if (!fs.existsSync(resultPath)) {
@@ -97,7 +97,7 @@ const executeVerificationSuite = codebaseVersion => {
 };
 
 const proposed = executeVerificationSuite(proposedCodebaseVersion);
-const publishedResultsPath = path.join(workDir, `tests-${publishedCodebaseVersion}.json`);
+const publishedResultsPath = path.join(workDir, `pre-edit-results-${publishedCodebaseVersion}.json`);
 const published = fs.existsSync(publishedResultsPath) ? readJson(publishedResultsPath) : executeVerificationSuite(publishedCodebaseVersion);
 if (!published.typecheck) {
 	throw new Error(`The published codebase fails its type check, so the proposed codebase has no results to match:\n${published.typecheckErrors}`);

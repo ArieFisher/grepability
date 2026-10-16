@@ -1,8 +1,8 @@
 // Agent score: starts the agent on each task in each codebase version, in fresh, identical-looking agent task run
 // copies. Same tools and no user settings in every local agent task run. Each agent task run gets a random id; the
-// id-to-codebase-version key is kept in work/runs/key.json so scoring can be blind.
+// id-to-codebase-version key is kept in work/agent-task-runs/key.json so scoring can be blind.
 // Each agent task run starts in an agent task run slot (see agent-runner.mjs), then its agent task run copy moves
-// to work/runs/<id>/ so scoring can execute its codebase verification suite later.
+// to work/agent-task-runs/<id>/ so scoring can execute its codebase verification suite later.
 // Usage: node start-agent-task-runs.mjs [--agent-task-runs 10] [--tasks find-all,rename,retry-count-start] [--codebase-versions published,proposed] [--parallel 2] [--model sonnet]
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -18,7 +18,7 @@ const taskIds = option(argv, 'tasks', config.tasks.map(task => task.id).join(','
 const selectedCodebaseVersions = option(argv, 'codebase-versions', codebaseVersions.join(',')).split(',');
 const parallel = integerOption(argv, 'parallel', 2, 1);
 const model = option(argv, 'model', agent.model);
-const agentTaskRunsDir = path.join(workDir, 'runs');
+const agentTaskRunsDir = path.join(workDir, 'agent-task-runs');
 const keyFile = path.join(agentTaskRunsDir, 'key.json');
 fs.mkdirSync(agentTaskRunsDir, {recursive: true});
 const key = fs.existsSync(keyFile) ? readJson(keyFile) : {};
@@ -31,7 +31,7 @@ const selectedTasks = taskIds.map(taskId => {
 
 	return task;
 });
-const jobs = missingAgentTaskRuns(selectedTasks, selectedCodebaseVersions, agentTaskRunsPerCell, (task, codebaseVersion) => Object.values(key).filter(entry => entry.task === task.id && entry.version === codebaseVersion).length);
+const jobs = missingAgentTaskRuns(selectedTasks, selectedCodebaseVersions, agentTaskRunsPerCell, (task, codebaseVersion) => Object.values(key).filter(entry => entry.task === task.id && entry.codebaseVersion === codebaseVersion).length);
 
 // Round-robin over cells (task x codebase version), shuffled within each round, so drift in the model service
 // over time hits every cell alike.
@@ -68,11 +68,11 @@ const worker = async slot => {
 		fs.rmSync(tmpDir, {recursive: true, force: true});
 		fs.writeFileSync(path.join(agentTaskRunDir, 'diff.patch'), diff);
 		fs.writeFileSync(path.join(agentTaskRunDir, 'final.md'), summary.finalText);
-		const runError = [outcome.runError, diffError].filter(Boolean).join('; ') || undefined;
-		writeJson(path.join(agentTaskRunDir, 'run.json'), {runId: agentTaskRunId, task: task.id, directory, snapshot, model, ...outcome, ...summary, runError, finalText: undefined});
-		key[agentTaskRunId] = {version: codebaseVersion, task: task.id, index};
+		const agentTaskRunError = [outcome.agentTaskRunError, diffError].filter(Boolean).join('; ') || undefined;
+		writeJson(path.join(agentTaskRunDir, 'run.json'), {agentTaskRunId, task: task.id, directory, snapshot, model, ...outcome, ...summary, agentTaskRunError, finalText: undefined});
+		key[agentTaskRunId] = {codebaseVersion, task: task.id, index};
 		writeJson(keyFile, key);
-		console.log(`${agentTaskRunId}: ${task.id} done in ${Math.round(outcome.wallMs / 1000)}s, $${summary.costUsd?.toFixed(2) ?? '?'}${outcome.exitCode === 0 ? '' : `, exit ${outcome.exitCode}`}${runError ? `, ${runError}` : ''}`);
+		console.log(`${agentTaskRunId}: ${task.id} done in ${Math.round(outcome.wallMs / 1000)}s, $${summary.costUsd?.toFixed(2) ?? '?'}${outcome.exitCode === 0 ? '' : `, exit ${outcome.exitCode}`}${agentTaskRunError ? `, ${agentTaskRunError}` : ''}`);
 	}
 };
 

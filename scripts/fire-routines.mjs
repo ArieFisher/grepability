@@ -1,6 +1,6 @@
 // Cloud agent task runs, step 2: fires each routine for the cloud agent task runs its cell still needs. One fire
 // starts one cloud agent task run; the request returns at once with the session, and the agent works in the cloud.
-// The script records each fired cloud agent task run in work/runs/cloud-fired.json with its codebase version and
+// The script records each fired cloud agent task run in work/agent-task-runs/cloud-fired.json with its codebase version and
 // task, so collect-cloud-agent-task-runs.mjs can score it once it has pushed.
 // The script stops at the first error, including the hourly limit (30 fires per routine, 100 per account).
 // Usage: node fire-routines.mjs [--agent-task-runs 10] [--tasks find-all,rename,retry-count-start] [--codebase-versions published,proposed]
@@ -29,7 +29,7 @@ for (const codebaseVersion of selectedCodebaseVersions) {
 	}
 }
 
-const agentTaskRunsDir = path.join(workDir, 'runs');
+const agentTaskRunsDir = path.join(workDir, 'agent-task-runs');
 const keyFile = path.join(agentTaskRunsDir, 'key.json');
 const firedFile = path.join(agentTaskRunsDir, 'cloud-fired.json');
 const key = fs.existsSync(keyFile) ? readJson(keyFile) : {};
@@ -39,7 +39,7 @@ const {routines} = loadRoutines(selectedTasks.flatMap(task => selectedCodebaseVe
 // A fired cloud agent task run counts toward its cell until it is collected, and a collected one sits in the key,
 // so an agent task run in both counts once.
 const allAgentTaskRuns = {...fired, ...key};
-const jobs = missingAgentTaskRuns(selectedTasks, selectedCodebaseVersions, agentTaskRunsPerCell, (task, codebaseVersion) => Object.values(allAgentTaskRuns).filter(entry => entry.task === task.id && entry.version === codebaseVersion).length);
+const jobs = missingAgentTaskRuns(selectedTasks, selectedCodebaseVersions, agentTaskRunsPerCell, (task, codebaseVersion) => Object.values(allAgentTaskRuns).filter(entry => entry.task === task.id && entry.codebaseVersion === codebaseVersion).length);
 const queue = interleave(jobs, job => cellKey(job.task.id, job.codebaseVersion));
 console.log(`${queue.length} cloud agent task runs to fire (${agentTaskRunsPerCell} per task per codebase version, existing agent task runs kept).`);
 
@@ -51,7 +51,7 @@ for (const {task, codebaseVersion, index} of queue) {
 		// Fires go one at a time: 60 fires take about a minute, and a sequential loop stops at the first error.
 		// eslint-disable-next-line no-await-in-loop
 		const session = await fireRoutine(routines[cellKey(task.id, codebaseVersion)], agentTaskRunId);
-		fired[agentTaskRunId] = {version: codebaseVersion, task: task.id, index, firedAt: new Date().toISOString(), ...session};
+		fired[agentTaskRunId] = {codebaseVersion, task: task.id, index, firedAt: new Date().toISOString(), ...session};
 		writeJson(firedFile, fired);
 		console.log(`${agentTaskRunId}: fired ${task.id} (${index + 1} of ${agentTaskRunsPerCell}) ${session.sessionUrl}`);
 	} catch (error) {

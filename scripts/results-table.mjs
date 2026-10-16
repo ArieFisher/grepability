@@ -1,7 +1,7 @@
 // Results table: each concept's search score and agent score per codebase version, with the change between
 // codebase versions and an overall row that leaves out the control concept.
 // Reads results/search-score.json (from search-score.mjs), which holds the ground truth state its scores used,
-// and results/agent-runs.json (from summarize-agents.mjs).
+// and results/agent-task-runs.json (from summarize-agents.mjs).
 // Without agent task runs the script writes n/a for every agent score and a note above the table.
 // Writes results/results-table.md.
 // Usage: node results-table.mjs
@@ -12,7 +12,7 @@ import {resultsTable} from './results.mjs';
 
 const resultsDir = path.join(projectRoot, 'results');
 const searchFile = path.join(resultsDir, 'search-score.json');
-const agentFile = path.join(resultsDir, 'agent-runs.json');
+const agentFile = path.join(resultsDir, 'agent-task-runs.json');
 if (!fs.existsSync(searchFile)) {
 	throw new Error(`Missing ${searchFile}: run scripts/search-score.mjs first.`);
 }

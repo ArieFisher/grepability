@@ -2,9 +2,9 @@
 //   find tasks: recall of the listed lines against the ground truth.
 //   edit tasks: which concept lines (or required lines) the agent changed, which other lines it changed,
 //               type checks, edit regressions, and the withheld acceptance test if the task has one.
-// Writes work/runs/scores.json (no codebase version) and results/blind-review.csv (no codebase version column; a
-// person marks wrong edits on it before looking at the key). An existing sheet keeps its rows and answers; only new
-// agent task runs are added.
+// Writes work/agent-task-runs/scores.json (no codebase version) and results/blind-edits-review.csv (no codebase
+// version column; a person marks wrong edits on it before looking at the key). An existing sheet keeps its rows and
+// answers; only new agent task runs are added.
 // Next: summarize-agents.mjs joins the scores to the key, after the sheet is answered.
 // Without --skip-verification-suite, every agent task run copy and both codebase versions' pre-edit codebase
 // verification suite results must be present; a missing one stops the script rather than scoring the agent task
@@ -18,7 +18,7 @@ const skipVerificationSuite = process.argv.includes('--skip-verification-suite')
 const config = loadTasks();
 const {concepts} = loadConcepts();
 const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
-const agentTaskRunsDir = path.join(workDir, 'runs');
+const agentTaskRunsDir = path.join(workDir, 'agent-task-runs');
 const agentTaskRunKey = readJson(path.join(agentTaskRunsDir, 'key.json'));
 const resultsDir = path.join(projectRoot, 'results');
 fs.mkdirSync(resultsDir, {recursive: true});
@@ -42,7 +42,7 @@ if (fs.existsSync(path.join(publishedRoot, loadCodebase().corpus.directory))) {
 }
 
 const preEditResults = Object.fromEntries(codebaseVersions.map(codebaseVersion => {
-	const file = path.join(workDir, `tests-${codebaseVersion}.json`);
+	const file = path.join(workDir, `pre-edit-results-${codebaseVersion}.json`);
 	if (fs.existsSync(file)) {
 		return [codebaseVersion, readJson(file)];
 	}
@@ -51,11 +51,11 @@ const preEditResults = Object.fromEntries(codebaseVersions.map(codebaseVersion =
 		throw new Error(`Missing pre-edit codebase verification suite results ${file}: run scripts/execute-verification-suite.mjs ${codebaseVersion}, or pass --skip-verification-suite to score recall only.`);
 	}
 
-	return [codebaseVersion, {tests: {}}];
+	return [codebaseVersion, {verifications: {}}];
 }));
 
 const scored = [];
-for (const [agentTaskRunId, {version: codebaseVersion, task: taskId}] of Object.entries(agentTaskRunKey)) {
+for (const [agentTaskRunId, {codebaseVersion, task: taskId}] of Object.entries(agentTaskRunKey)) {
 	if (!codebaseVersions.includes(codebaseVersion)) {
 		throw new Error(`Agent task run ${agentTaskRunId}: the key names codebase version "${codebaseVersion}", expected one of ${codebaseVersions.join(', ')}. An agent task run recorded before the codebase versions were named needs a fresh agent task run.`);
 	}
@@ -68,10 +68,10 @@ for (const [agentTaskRunId, {version: codebaseVersion, task: taskId}] of Object.
 	const expected = new Set(truthLines(entry));
 	const diff = fs.readFileSync(path.join(agentTaskRunDir, 'diff.patch'), 'utf8');
 	const row = {
-		runId: agentTaskRunId,
-		version: codebaseVersion,
+		agentTaskRunId,
+		codebaseVersion,
 		task: taskId,
-		agentError: agentTaskRun.isError || agentTaskRun.exitCode !== 0 || Boolean(agentTaskRun.runError),
+		agentError: agentTaskRun.isError || agentTaskRun.exitCode !== 0 || Boolean(agentTaskRun.agentTaskRunError),
 		...agentTaskRunMeasures(agentTaskRun),
 	};
 
@@ -107,7 +107,7 @@ for (const [agentTaskRunId, {version: codebaseVersion, task: taskId}] of Object.
 		row.missed = [...targets].filter(item => !changed.has(item)).length;
 		row.otherSourceLinesChanged = sourceChanged.filter(item => !expected.has(item) && !targets.has(item)).length;
 		row.recall = (targets.size - row.missed) / targets.size;
-		row.testsRun = !skipVerificationSuite;
+		row.verificationSuiteExecuted = !skipVerificationSuite;
 
 		if (!skipVerificationSuite && !fs.existsSync(agentTaskRun.directory)) {
 			throw new Error(`Agent task run ${agentTaskRunId}: agent task run copy ${agentTaskRun.directory} is gone, so its codebase verification suite cannot execute. Pass --skip-verification-suite to score recall only.`);
@@ -123,7 +123,7 @@ for (const [agentTaskRunId, {version: codebaseVersion, task: taskId}] of Object.
 			// An old result file is removed first, so a failed codebase verification suite execution cannot be scored
 			// from a stale one. Exit status 1 with a fresh file means the type check failed, which is a result; no file
 			// means the codebase verification suite execution failed.
-			const output = path.join(agentTaskRunDir, 'tests.json');
+			const output = path.join(agentTaskRunDir, 'verification-suite.json');
 			fs.rmSync(output, {force: true});
 			runChecked('node', [path.join(projectRoot, 'scripts', 'execute-verification-suite.mjs'), agentTaskRun.directory, output], {stdio: 'inherit'});
 			if (!fs.existsSync(output)) {
@@ -136,7 +136,7 @@ for (const [agentTaskRunId, {version: codebaseVersion, task: taskId}] of Object.
 			// verification. judgeLostVerificationTitles gives each lost verification title one re-execution, up to its
 			// limit per verification file, and reports a verification file that stopped partway.
 			const {verificationSuite} = loadCodebase();
-			const {reexecute, files} = editRegressionCandidates(preEditResults[codebaseVersion].tests, suiteResults.tests, renamedVerificationTitles(diff, verificationSuite), verificationSuite.verificationTitleSeparator);
+			const {reexecute, files} = editRegressionCandidates(preEditResults[codebaseVersion].verifications, suiteResults.verifications, renamedVerificationTitles(diff, verificationSuite), verificationSuite.verificationTitleSeparator);
 			const stoppedPartway = [];
 			const failing = [
 				...reexecute.filter(title => reexecuteVerification(agentTaskRun.directory, title) === 0),
@@ -146,16 +146,16 @@ for (const [agentTaskRunId, {version: codebaseVersion, task: taskId}] of Object.
 						stoppedPartway.push(file);
 					}
 
-					return Array.from({length: judged.removedVerifications}, () => `${file} (test removed)`);
+					return Array.from({length: judged.removedVerifications}, () => `${file} (verification removed)`);
 				}),
 			];
-			row.testFilesStoppedPartway = stoppedPartway.join('; ');
+			row.verificationFilesStoppedPartway = stoppedPartway.join('; ');
 			row.typecheck = suiteResults.typecheck;
-			row.testRegressions = failing.length;
-			row.regressedTests = failing.join('; ');
+			row.editRegressions = failing.length;
+			row.regressedVerifications = failing.join('; ');
 			if (task.withheldAcceptanceTest) {
-				const withheld = Object.entries(suiteResults.tests).filter(([title]) => isWithheldAcceptanceTest(title));
-				row.hiddenTestPassed = withheld.length > 0 && withheld.every(([, passed]) => passed);
+				const withheld = Object.entries(suiteResults.verifications).filter(([title]) => isWithheldAcceptanceTest(title));
+				row.withheldAcceptanceTestPassed = withheld.length > 0 && withheld.every(([, passed]) => passed);
 			}
 
 			row.success = editSuccess(row);
@@ -169,13 +169,13 @@ for (const [agentTaskRunId, {version: codebaseVersion, task: taskId}] of Object.
 
 // Scores carry no codebase version, so nothing a person opens before the blind edits-review shows one.
 // summarize-agents.mjs joins them to the key.
-writeJson(path.join(agentTaskRunsDir, 'scores.json'), scored.map(({version, ...score}) => score));
+writeJson(path.join(agentTaskRunsDir, 'scores.json'), scored.map(({codebaseVersion, ...score}) => score));
 
 // Blind edits-review sheet: rows already there stay as written, with their answers. New agent task runs follow,
 // shuffled, with no codebase version.
-const sheetFile = path.join(resultsDir, 'blind-review.csv');
+const sheetFile = path.join(resultsDir, 'blind-edits-review.csv');
 const existingRows = fs.existsSync(sheetFile) ? fromCsv(fs.readFileSync(sheetFile, 'utf8')) : [];
 const relativeAgentTaskRunFile = (agentTaskRunId, name) => path.relative(projectRoot, path.join(agentTaskRunsDir, agentTaskRunId, name));
-const sheet = blindEditsReviewSheetRows(existingRows, scored.map(row => ({runId: row.runId, task: row.task, diff: relativeAgentTaskRunFile(row.runId, 'diff.patch'), finalReply: relativeAgentTaskRunFile(row.runId, 'final.md')})));
+const sheet = blindEditsReviewSheetRows(existingRows, scored.map(row => ({agentTaskRunId: row.agentTaskRunId, task: row.task, diff: relativeAgentTaskRunFile(row.agentTaskRunId, 'diff.patch'), finalReply: relativeAgentTaskRunFile(row.agentTaskRunId, 'final.md')})));
 fs.writeFileSync(sheetFile, toCsv([blindEditsReviewSheetColumns, ...sheet]));
 console.log(`Wrote ${path.relative(projectRoot, sheetFile)} (${sheet.length} agent task runs). Fill wrong_edits with yes or no on each row, then run node scripts/summarize-agents.mjs.`);

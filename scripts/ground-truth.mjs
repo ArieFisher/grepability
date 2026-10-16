@@ -1,6 +1,6 @@
 // Builds the ground truth: every line of the published codebase where each concept appears.
 //   Names in code: the type checker's references for each seed symbol in config/concepts.json.
-//   Comments and strings: lines the taggers tagged (truth/reviewer-*.csv). Lines all taggers agree on
+//   Comments and strings: lines the taggers tagged (truth/tagger-*.csv). Lines all taggers agree on
 //   count; disagreements go to truth/disagreements.csv. Duplicate that file as truth/adjudication.csv and set
 //   `decision` to yes or no and `adjudicator` to who decided, a person or an AI stand-in, on each row;
 //   adjudicated rows then count too, and truth.json lists the adjudicators. Without adjudication the
@@ -66,22 +66,22 @@ for (const concept of concepts) {
 }
 
 // Comments and strings.
-const taggerFiles = fs.readdirSync(truthDir).filter(file => /^reviewer-.+\.csv$/.test(file)).sort();
+const taggerFiles = fs.readdirSync(truthDir).filter(file => /^tagger-.+\.csv$/.test(file)).sort();
 if (taggerFiles.length === 0) {
 	throw new Error('No tagger files in truth/. Run extract-tagging-sheet.mjs and tag the tagging sheet first.');
 }
 
 const taggers = taggerFiles.map(file => ({
-	name: file.replace(/^reviewer-|\.csv$/g, ''),
+	name: file.replace(/^tagger-|\.csv$/g, ''),
 	tags: new Map(fromCsv(fs.readFileSync(path.join(truthDir, file), 'utf8'))
 		.map(row => [key(row.file, row.line), {row, ids: new Set(row.concepts.split(/\s+/).filter(Boolean))}])),
 }));
-const sheetRows = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'), 'utf8'));
+const sheetRows = fromCsv(fs.readFileSync(path.join(truthDir, 'tagging-sheet.csv'), 'utf8'));
 const rowKeys = sheetRows.map(row => key(row.file, row.line));
 // A text line takes the line kind the tagging sheet records for it.
 const textKind = new Map(sheetRows.map(row => {
 	if (!textKinds.has(row.kind)) {
-		throw new Error(`truth/review-sheet.csv: ${row.file}:${row.line} has kind "${row.kind}"; a text line is a comment or a string.`);
+		throw new Error(`truth/tagging-sheet.csv: ${row.file}:${row.line} has kind "${row.kind}"; a text line is a comment or a string.`);
 	}
 
 	return [key(row.file, row.line), row.kind];
@@ -148,7 +148,7 @@ const sortKeys = keys => [...keys].sort((a, b) => {
 
 const truth = {
 	commit: loadCodebase().commit,
-	reviewers: taggers.map(tagger => tagger.name),
+	taggers: taggers.map(tagger => tagger.name),
 	provisional: unresolved > 0,
 	unresolvedDisagreements: unresolved,
 	adjudicators,

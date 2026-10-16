@@ -33,7 +33,7 @@ const agentTaskRunsWithConcept = (agentTaskRuns, tasks) => {
 	const conceptOf = new Map(tasks.map(task => [task.id, task.concept]));
 	return agentTaskRuns.map(agentTaskRun => {
 		if (!conceptOf.has(agentTaskRun.task)) {
-			throw new Error(`Agent task run ${agentTaskRun.runId ?? ''} names task ${agentTaskRun.task}, which the task configuration does not hold.`);
+			throw new Error(`Agent task run ${agentTaskRun.agentTaskRunId ?? ''} names task ${agentTaskRun.task}, which the task configuration does not hold.`);
 		}
 
 		return {...agentTaskRun, concept: conceptOf.get(agentTaskRun.task)};
@@ -41,7 +41,7 @@ const agentTaskRunsWithConcept = (agentTaskRuns, tasks) => {
 };
 
 const conceptCell = (concept, codebaseVersion, searchResults, agentTaskRuns) => {
-	const result = searchResults.find(row => row.version === codebaseVersion && row.concept === concept.id);
+	const result = searchResults.find(row => row.codebaseVersion === codebaseVersion && row.concept === concept.id);
 	if (!result) {
 		throw new Error(`The search score holds no result for concept ${concept.id} in codebase version ${codebaseVersion}; run scripts/search-score.mjs.`);
 	}
@@ -50,7 +50,7 @@ const conceptCell = (concept, codebaseVersion, searchResults, agentTaskRuns) => 
 		recall: result.recall,
 		precision: result.precision,
 		searchScore: searchScore(result.recall, result.precision),
-		agent: successScore(agentTaskRuns.filter(agentTaskRun => agentTaskRun.version === codebaseVersion && agentTaskRun.concept === concept.id)),
+		agent: successScore(agentTaskRuns.filter(agentTaskRun => agentTaskRun.codebaseVersion === codebaseVersion && agentTaskRun.concept === concept.id)),
 	};
 };
 
@@ -64,7 +64,7 @@ const overallRow = (rows, agentTaskRuns, codebaseVersionNames) => {
 	const scores = codebaseVersion => measured.map(row => row.byCodebaseVersion[codebaseVersion].searchScore);
 	const byCodebaseVersion = Object.fromEntries(codebaseVersionNames.map(codebaseVersion => [codebaseVersion, {
 		searchScore: scores(codebaseVersion).includes(null) ? null : mean(scores(codebaseVersion)),
-		agent: successScore(agentTaskRuns.filter(agentTaskRun => agentTaskRun.version === codebaseVersion && ids.has(agentTaskRun.concept))),
+		agent: successScore(agentTaskRuns.filter(agentTaskRun => agentTaskRun.codebaseVersion === codebaseVersion && ids.has(agentTaskRun.concept))),
 	}]));
 	return {byCodebaseVersion, change: changes(byCodebaseVersion, codebaseVersionNames)};
 };
@@ -78,7 +78,7 @@ export const resultsTable = ({concepts, tasks, searchResults, agentTaskRuns, cod
 	return {
 		rows,
 		overall: overallRow(rows, withConcept, codebaseVersionNames),
-		skippedAgentTaskRuns: withConcept.filter(agentTaskRun => agentTaskRun.testsRun === false).length,
+		skippedAgentTaskRuns: withConcept.filter(agentTaskRun => agentTaskRun.verificationSuiteExecuted === false).length,
 		unknownAgentTaskRuns: withConcept.filter(agentTaskRun => agentTaskRun.success === null).length,
 	};
 };

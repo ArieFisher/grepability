@@ -14,7 +14,7 @@ const tasks = [
 	{id: 'edit', concept: 'count'},
 	{id: 'jitter-find', concept: 'jitter'},
 ];
-const searchRow = (version, concept, recall, precision) => ({version, concept, recall, precision});
+const searchRow = (codebaseVersion, concept, recall, precision) => ({codebaseVersion, concept, recall, precision});
 const searchResults = [
 	searchRow('published', 'count', 0.5, 1),
 	searchRow('published', 'delay', 0.5, 0.5),
@@ -23,7 +23,7 @@ const searchResults = [
 	searchRow('proposed', 'delay', 1, 0.5),
 	searchRow('proposed', 'jitter', 1, 1),
 ];
-const run = (version, task, success) => ({version, task, success});
+const run = (codebaseVersion, task, success) => ({codebaseVersion, task, success});
 const agentTaskRuns = [
 	run('published', 'find', true),
 	run('published', 'edit', false),
@@ -47,14 +47,14 @@ test('searchScore of a search with no hits is 0, because its recall is 0', () =>
 });
 
 test('resultsTable overall search score is null when a measured concept has no search score in a version', () => {
-	const noTruth = searchResults.map(row => row.version === 'proposed' && row.concept === 'delay' ? {...row, recall: null} : row);
+	const noTruth = searchResults.map(row => row.codebaseVersion === 'proposed' && row.concept === 'delay' ? {...row, recall: null} : row);
 	const table = resultsTable({concepts, tasks, searchResults: noTruth, agentTaskRuns, codebaseVersionNames});
 	assert.equal(table.overall.byCodebaseVersion.proposed.searchScore, null);
 	assert.equal(table.overall.change.searchScore, null);
 });
 
 test('resultsTable counts the runs scored without the type check and the tests', () => {
-	const skipped = [...agentTaskRuns, {...run('published', 'edit', true), testsRun: false}];
+	const skipped = [...agentTaskRuns, {...run('published', 'edit', true), verificationSuiteExecuted: false}];
 	assert.equal(resultsTable({concepts, tasks, searchResults, agentTaskRuns: skipped, codebaseVersionNames}).skippedAgentTaskRuns, 1);
 	assert.equal(resultsTable({concepts, tasks, searchResults, agentTaskRuns, codebaseVersionNames}).skippedAgentTaskRuns, 0);
 });

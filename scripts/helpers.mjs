@@ -423,7 +423,7 @@ export const agentTaskRunMeasures = agentTaskRun => {
 		wallSeconds: typeof agentTaskRun.wallMs === 'number' ? Math.round(agentTaskRun.wallMs / 1000) : null,
 		costUsd: agentTaskRun.costUsd ?? null,
 		turns: agentTaskRun.turns ?? null,
-		searchCalls: counts ? Object.entries(counts).filter(([tool]) => /^(Grep|Glob|Bash:(rg|grep))$/.test(tool)).reduce((sum, [, count]) => sum + count, 0) : null,
+		agentSearchToolCalls: counts ? Object.entries(counts).filter(([tool]) => /^(Grep|Glob|Bash:(rg|grep))$/.test(tool)).reduce((sum, [, count]) => sum + count, 0) : null,
 		readCalls: counts ? counts.Read ?? 0 : null,
 		tools: counts ? JSON.stringify(counts) : '',
 	};
@@ -539,12 +539,12 @@ export const mean = values => {
 // Success of an agent task run of an edit task, scored with its codebase verification suite execution. An agent
 // task run with a verification file that stopped partway gets null, for unknown: the scoring script holds no
 // result for the individual codebase verifications after the stop, and a rescore gives a verdict.
-export const editSuccess = ({typecheck, testRegressions, missed, hiddenTestPassed, testFilesStoppedPartway}) => {
-	if (testFilesStoppedPartway) {
+export const editSuccess = ({typecheck, editRegressions, missed, withheldAcceptanceTestPassed, verificationFilesStoppedPartway}) => {
+	if (verificationFilesStoppedPartway) {
 		return null;
 	}
 
-	return typecheck && testRegressions === 0 && missed === 0 && (hiddenTestPassed ?? true);
+	return typecheck && editRegressions === 0 && missed === 0 && (withheldAcceptanceTestPassed ?? true);
 };
 
 // Successes over a list of agent task runs, as a count, a share, and the Wilson interval. An agent task run with
@@ -562,7 +562,7 @@ export const successScore = allAgentTaskRuns => {
 // A number with a fixed count of decimals for a summary table. Null gives n/a.
 export const format = (value, digits = 2) => value === null ? 'n/a' : value.toFixed(digits);
 
-// The per-kind cells of one agent task run in the agent task runs table: for each line kind, the lines the task
+// The per-kind cells of one agent task run in agent-task-runs.csv: for each line kind, the lines the task
 // holds, the true positives (a find task), and the lines changed (an edit task). A cell with no number stays empty.
 export const lineKindCells = (row, kinds, taskKind) => kinds.flatMap(kind => {
 	const tally = row.byKind?.[kind];
@@ -603,7 +603,7 @@ export const agentSummaryRow = (task, codebaseVersion, agentTaskRuns, pCell) => 
 		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.missed)), 1),
 		format(median(agentTaskRuns.map(agentTaskRun => agentTaskRun.wallSeconds)), 0),
 		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.costUsd))),
-		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.searchCalls)), 1),
+		format(mean(agentTaskRuns.map(agentTaskRun => agentTaskRun.agentSearchToolCalls)), 1),
 	];
 	return `| ${cells.join(' | ')} |`;
 };
@@ -836,7 +836,7 @@ export const fromCsv = text => {
 };
 
 // Columns of the blind edits-review sheet. A person fills wrong_edits with yes or no and may add notes.
-export const blindEditsReviewSheetColumns = ['runId', 'task', 'diff', 'final_reply', 'wrong_edits', 'notes'];
+export const blindEditsReviewSheetColumns = ['agentTaskRunId', 'task', 'diff', 'final_reply', 'wrong_edits', 'notes'];
 
 // Rows of the blind edits-review sheet. Rows already on the sheet stay as written, so a rescore keeps a person's
 // answers. Agent task runs not yet on the sheet follow in shuffled order, with no codebase version shown.
@@ -848,10 +848,10 @@ export const blindEditsReviewSheetRows = (existing, agentTaskRuns) => {
 		}
 	}
 
-	const known = new Set(existing.map(row => row.runId));
+	const known = new Set(existing.map(row => row.agentTaskRunId));
 	return [
 		...existing.map(row => blindEditsReviewSheetColumns.map(column => row[column])),
-		...shuffle(agentTaskRuns.filter(agentTaskRun => !known.has(agentTaskRun.runId))).map(agentTaskRun => [agentTaskRun.runId, agentTaskRun.task, agentTaskRun.diff, agentTaskRun.finalReply, '', '']),
+		...shuffle(agentTaskRuns.filter(agentTaskRun => !known.has(agentTaskRun.agentTaskRunId))).map(agentTaskRun => [agentTaskRun.agentTaskRunId, agentTaskRun.task, agentTaskRun.diff, agentTaskRun.finalReply, '', '']),
 	];
 };
 
@@ -863,14 +863,14 @@ export const readWrongEdits = (rows, agentTaskRunIds) => {
 	for (const row of rows) {
 		const value = row.wrong_edits.trim().toLowerCase();
 		if (!['', 'yes', 'no'].includes(value)) {
-			throw new Error(`Blind edits-review sheet: agent task run ${row.runId} has wrong_edits "${row.wrong_edits}", expected yes, no, or blank.`);
+			throw new Error(`Blind edits-review sheet: agent task run ${row.agentTaskRunId} has wrong_edits "${row.wrong_edits}", expected yes, no, or blank.`);
 		}
 
-		if (flags.has(row.runId)) {
-			throw new Error(`Blind edits-review sheet: agent task run ${row.runId} appears twice.`);
+		if (flags.has(row.agentTaskRunId)) {
+			throw new Error(`Blind edits-review sheet: agent task run ${row.agentTaskRunId} appears twice.`);
 		}
 
-		flags.set(row.runId, value === '' ? null : value === 'yes');
+		flags.set(row.agentTaskRunId, value === '' ? null : value === 'yes');
 	}
 
 	const missing = agentTaskRunIds.filter(agentTaskRunId => !flags.has(agentTaskRunId));

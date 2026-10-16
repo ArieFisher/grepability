@@ -38,11 +38,11 @@ for (const file of corpusFiles(root)) {
 }
 
 const sorted = [...rows.values()].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
-const output = path.join(projectRoot, 'truth', 'review-sheet.csv');
+const output = path.join(projectRoot, 'truth', 'tagging-sheet.csv');
 fs.mkdirSync(path.dirname(output), {recursive: true});
 fs.writeFileSync(output, toCsv([
 	['file', 'line', 'kind', 'concepts', 'text'],
 	...sorted.map(row => [row.file, row.line, row.kind, '', row.text]),
 ]));
 console.log(`${sorted.length} lines (${sorted.filter(row => row.kind === 'comment').length} comment, ${sorted.filter(row => row.kind === 'string').length} string) -> ${output}`);
-console.log('Each tagger copies this file to truth/reviewer-<name>.csv and fills the concepts column with space-separated concept ids.');
+console.log('Each tagger copies this file to truth/tagger-<name>.csv and fills the concepts column with space-separated concept ids.');

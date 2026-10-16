@@ -306,13 +306,13 @@ export const reexecuteVerification = (root, verificationTitle, times = reexecuti
 // differs re-executes in both directories; one that both passes and fails across re-executions is a flaky
 // verification, not a difference.
 export const compareVerificationSuiteResults = (resultA, resultB) => {
-	const titles = Object.keys({...resultA.tests, ...resultB.tests});
-	const changed = titles.filter(title => resultA.tests[title] !== resultB.tests[title]);
+	const titles = Object.keys({...resultA.verifications, ...resultB.verifications});
+	const changed = titles.filter(title => resultA.verifications[title] !== resultB.verifications[title]);
 	const differences = [];
 	const flakyVerifications = [];
 	for (const title of changed) {
-		if (resultA.tests[title] === undefined || resultB.tests[title] === undefined) {
-			differences.push({title, a: resultA.tests[title], b: resultB.tests[title]});
+		if (resultA.verifications[title] === undefined || resultB.verifications[title] === undefined) {
+			differences.push({title, a: resultA.verifications[title], b: resultB.verifications[title]});
 			continue;
 		}
 
