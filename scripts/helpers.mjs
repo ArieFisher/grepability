@@ -525,11 +525,8 @@ export const successScore = allRuns => {
 // A number with a fixed count of decimals for a summary table. Null gives n/a.
 export const format = (value, digits = 2) => value === null ? 'n/a' : value.toFixed(digits);
 
-// One row of the agent summary table, for the runs of one task in one version; pCell is the text of the p column.
-// Runs counts every run, as the averaged columns do. The success count and its interval cover the runs with
-// known success, and show n/a when every run has unknown success.
-// The per-kind cells of one run in agent-runs.csv: for each line kind, the lines the task holds, the lines
-// found (a find run), and the lines changed (an edit run). A cell with no number stays empty.
+// The per-kind cells of one run in agent-runs.csv: for each line kind, the lines the task holds, the true
+// positives (a find run), and the lines changed (an edit run). A cell with no number stays empty.
 export const lineKindCells = (row, kinds, taskKind) => kinds.flatMap(kind => {
 	const tally = row.byKind?.[kind];
 	if (!tally) {
@@ -540,7 +537,7 @@ export const lineKindCells = (row, kinds, taskKind) => kinds.flatMap(kind => {
 });
 
 // The rows of the "Lines by line kind" table for one task and version: each line kind the cell holds, its
-// lines, and the mean lines found (a find task) or changed (an edit task) over the runs.
+// lines, and the mean true positives (a find task) or lines changed (an edit task) over the runs.
 export const lineKindRows = (task, version, runs, kinds, taskKind) => kinds
 	.filter(kind => runs.some(run => run.byKind?.[kind]))
 	.map(kind => {
@@ -549,6 +546,9 @@ export const lineKindRows = (task, version, runs, kinds, taskKind) => kinds
 		return `| ${[task, version, kind, tallies[0].lines, taskKind === 'find' ? done : '', taskKind === 'find' ? '' : done].join(' | ')} |`;
 	});
 
+// One row of the agent summary table, for the runs of one task in one version; pCell is the text of the p column.
+// Runs counts every run, as the averaged columns do. The success count and its interval cover the runs with
+// known success, and show n/a when every run has unknown success.
 export const agentSummaryRow = (task, version, runs, pCell) => {
 	const score = successScore(runs);
 	const answered = runs.filter(run => run.wrongEdits !== null);
@@ -611,18 +611,19 @@ export const median = values => {
 	return numbers.length % 2 === 1 ? numbers[middle] : (numbers[middle - 1] + numbers[middle]) / 2;
 };
 
-// The ground truth entry of one concept maps each line to its sorted line kinds. These two accessors read
-// it, so that no script depends on how the entry stores its lines. truthLines gives the lines in file and
-// line order; isNameLine tells a name line, which holds a line kind other than comment and string, from a
-// text line.
-const textKinds = new Set(['comment', 'string']);
+// The ground truth script writes, for each concept, a map from each line to its sorted line kinds. These
+// two accessors read that map, so that no other script depends on how the ground truth stores its lines.
+// truthLines gives the lines in file and line order; isNameLine tells a name line, which holds a line kind
+// other than comment and string, from a text line.
+export const textKinds = new Set(['comment', 'string']);
 export const truthLines = entry => Object.keys(entry.lines);
 export const isNameLine = (entry, line) => (entry.lines[line] ?? []).some(kind => !textKinds.has(kind));
 
 // The line kinds table in docs/vocabulary.md: the line kinds in table order, and the mapping from a
 // TypeScript declaration kind to a line kind that its TypeScript kinds column holds. It throws on a missing
-// table, a missing column, or a table with no rows, because finding nothing and having nothing to map look
-// the same from outside.
+// table, a missing column, a table with no rows, a short row, an empty TypeScript kinds column, and a
+// table without the comment, string, and other rows that the scripts rely on, because finding nothing and
+// having nothing to map look the same from outside.
 export const readLineKinds = markdown => {
 	const section = markdown.split(/^### Line kinds$/m)[1]?.split(/^#{1,3} /m)[0];
 	if (section === undefined) {
@@ -643,8 +644,22 @@ export const readLineKinds = markdown => {
 		throw new Error('docs/vocabulary.md: the line kinds table has no rows');
 	}
 
+	const short = body.find(row => row.length < header.length);
+	if (short) {
+		throw new Error(`docs/vocabulary.md: the line kinds row "${short.join(' | ')}" has fewer cells than the header`);
+	}
+
 	const kinds = body.map(row => row[kindColumn]);
+	const missing = [...textKinds, 'other'].filter(kind => !kinds.includes(kind));
+	if (missing.length > 0) {
+		throw new Error(`docs/vocabulary.md: the line kinds table lacks the ${missing.join(', ')} row`);
+	}
+
 	const mapping = new Map(body.flatMap(row => row[typescriptColumn].split(',').map(name => name.trim()).filter(Boolean).map(name => [name, row[kindColumn]])));
+	if (mapping.size === 0) {
+		throw new Error('docs/vocabulary.md: the line kinds table holds no TypeScript kinds');
+	}
+
 	return {kinds, mapping};
 };
 

@@ -488,6 +488,7 @@ const lineKindsDoc = [
 	'| Kind | Meaning | TypeScript kinds | Retired |',
 	'|---|---|---|---|',
 	'| comment | A comment. | | remark |',
+	'| string | A string. | | |',
 	'| property | A property. | property, getter | attribute |',
 	'| other | Anything else. | | misc |',
 	'',
@@ -496,14 +497,17 @@ const lineKindsDoc = [
 
 test('readLineKinds reads the line kinds in table order and the mapping from declaration kind to line kind', () => {
 	const {kinds, mapping} = readLineKinds(lineKindsDoc);
-	assert.deepEqual(kinds, ['comment', 'property', 'other']);
+	assert.deepEqual(kinds, ['comment', 'string', 'property', 'other']);
 	assert.deepEqual([...mapping], [['property', 'property'], ['getter', 'property']]);
 });
 
-test('readLineKinds throws on a missing table, a missing column, or a table with no rows', () => {
+test('readLineKinds throws on a missing table, a missing column, no rows, no TypeScript kinds, a missing comment, string, or other row, and a short row', () => {
 	assert.throws(() => readLineKinds('## Ground truth\n'), /Line kinds/);
 	assert.throws(() => readLineKinds(lineKindsDoc.replace('TypeScript kinds', 'TS kinds')), /TypeScript kinds/);
-	assert.throws(() => readLineKinds(lineKindsDoc.replace(/\| (comment|property|other) \|.*\n/g, '')), /no rows/);
+	assert.throws(() => readLineKinds(lineKindsDoc.replace(/\| (comment|string|property|other) \|.*\n/g, '')), /no rows/);
+	assert.throws(() => readLineKinds(lineKindsDoc.replace('property, getter', '')), /no TypeScript kinds/);
+	assert.throws(() => readLineKinds(lineKindsDoc.replace('| other | Anything else. | | misc |', '| misc | Anything else. | | |')), /other/);
+	assert.throws(() => readLineKinds(lineKindsDoc.replace('| string | A string. | | |', '| string |')), /cells/);
 });
 
 test('readLineKinds reads the line kinds table in docs/vocabulary.md', () => {
@@ -527,14 +531,14 @@ test('kindTally counts the lines of each line kind and how many of them are done
 	});
 });
 
-test('lineKindCells gives three cells per line kind and leaves found empty for an edit run and changed empty for a find run', () => {
+test('lineKindCells gives three cells per line kind and leaves true positives empty for an edit run and changed empty for a find run', () => {
 	const byKind = {comment: {lines: 3, done: 2}};
 	assert.deepEqual(lineKindCells({byKind}, ['comment', 'property'], 'find'), [3, 2, '', '', '', '']);
 	assert.deepEqual(lineKindCells({byKind}, ['comment', 'property'], 'edit'), [3, '', 2, '', '', '']);
 	assert.deepEqual(lineKindCells({}, ['comment'], 'find'), ['', '', '']);
 });
 
-test('lineKindRows gives one row per line kind the cell holds, with the lines and the mean found or changed', () => {
+test('lineKindRows gives one row per line kind the cell holds, with the lines and the mean true positives or lines changed', () => {
 	const runs = [{byKind: {comment: {lines: 4, done: 1}, property: {lines: 2, done: 2}}}, {byKind: {comment: {lines: 4, done: 2}, property: {lines: 2, done: 2}}}];
 	assert.deepEqual(lineKindRows('find-all', 'published', runs, ['comment', 'string', 'property'], 'find'), [
 		'| find-all | published | comment | 4 | 1.5 |  |',

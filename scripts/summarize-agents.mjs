@@ -38,8 +38,8 @@ const scored = scores.map(row => {
 // A failing test in one run may be a flaky timing test; regressions are listed per run for checking.
 writeJson(path.join(resultsDir, 'agent-runs.json'), scored);
 const columns = ['runId', 'version', 'task', 'success', 'recall', 'missed', 'targetLines', 'otherSourceLinesChanged', 'testsRun', 'typecheck', 'testRegressions', 'hiddenTestPassed', 'wallSeconds', 'costUsd', 'turns', 'searchCalls', 'readCalls', 'agentError', 'wrongEdits', 'regressedTests', 'testFilesStoppedPartway', 'tools'];
-// Three columns per line kind, in the line kinds table's order: the lines the task holds, found, and changed.
-const kindColumns = kinds.flatMap(kind => [`${kind}Lines`, `${kind}Found`, `${kind}Changed`]);
+// Three columns per line kind, in the line kinds table's order: the lines the task holds, true positives, and lines changed.
+const kindColumns = kinds.flatMap(kind => [`${kind}Lines`, `${kind}TruePositives`, `${kind}Changed`]);
 fs.writeFileSync(path.join(resultsDir, 'agent-runs.csv'), toCsv([[...columns, ...kindColumns], ...scored.map(row => [...columns.map(column => row[column]), ...lineKindCells(row, kinds, taskKind(row.task))])]));
 
 const skipped = scored.filter(row => row.testsRun === false).length;
@@ -80,7 +80,7 @@ lines.push(
 	'',
 	'Lines counts the lines of each line kind the task holds: the ground truth lines for a find task, the target lines or required lines for an edit task. A line with two line kinds counts under both, so the counts can sum to more than the line total.',
 	'',
-	'| Task | Version | Line kind | Lines | Mean found | Mean changed |',
+	'| Task | Version | Line kind | Lines | Mean true positives | Mean changed |',
 	'|---|---|---|---|---|---|',
 );
 for (const task of config.tasks) {

@@ -8,7 +8,7 @@
 // Usage: node ground-truth.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {checkReviewers, createService, fromCsv, inCorpus, key, lineKindOf, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, readLineKinds, relative, runChecked, splitKey, toCsv, usedAdjudicators, versionDir, writeJson} from './lib.mjs';
+import {checkReviewers, createService, fromCsv, inCorpus, key, lineKindOf, lineOf, loadCodebase, loadConcepts, positionOf, projectRoot, publishedVersion, readAdjudication, readLineKinds, relative, runChecked, splitKey, textKinds, toCsv, usedAdjudicators, versionDir, writeJson} from './lib.mjs';
 
 const root = versionDir(publishedVersion);
 const {concepts} = loadConcepts();
@@ -80,8 +80,8 @@ const sheetRows = fromCsv(fs.readFileSync(path.join(truthDir, 'review-sheet.csv'
 const rowKeys = sheetRows.map(row => key(row.file, row.line));
 // A text line takes the line kind the review sheet records for it.
 const textKind = new Map(sheetRows.map(row => {
-	if (!lineKinds.kinds.includes(row.kind)) {
-		throw new Error(`truth/review-sheet.csv: ${row.file}:${row.line} has kind "${row.kind}", which the line kinds table lacks.`);
+	if (!textKinds.has(row.kind)) {
+		throw new Error(`truth/review-sheet.csv: ${row.file}:${row.line} has kind "${row.kind}"; a text line is a comment or a string.`);
 	}
 
 	return [key(row.file, row.line), row.kind];
@@ -153,7 +153,7 @@ const truth = {
 	unresolvedDisagreements: unresolved,
 	adjudicators,
 	agreement,
-	// Each concept maps every line, in file and line order, to its sorted line kinds.
+	// For each concept, the script writes a map from each line, in file and line order, to its sorted line kinds.
 	concepts: Object.fromEntries(concepts.map(concept => {
 		const kindsByLine = new Map([...nameLines.get(concept.id)].map(([line, kinds]) => [line, new Set(kinds)]));
 		for (const line of textLines.get(concept.id)) {
