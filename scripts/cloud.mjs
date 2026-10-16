@@ -21,7 +21,7 @@ export const cellKey = (taskId, version) => `${taskId}|${version}`;
 // The cloud settings of config/tasks.json. Every field is required, so a missing one fails here.
 export const loadCloud = () => {
 	const {cloud} = loadTasks();
-	const missing = ['defaultBranch', 'runBranchPrefix', 'replyFile', 'pendingLimitMinutes'].filter(field => cloud?.[field] === undefined);
+	const missing = ['defaultBranch', 'cloudAgentTaskRunBranchPrefix', 'replyFile', 'pendingLimitMinutes'].filter(field => cloud?.[field] === undefined);
 	if (missing.length > 0) {
 		throw new Error(`config/tasks.json cloud is missing: ${missing.join(', ')}`);
 	}
@@ -33,14 +33,14 @@ export const loadCloud = () => {
 	return cloud;
 };
 
-export const runBranch = (cloud, runId) => `${cloud.runBranchPrefix}${runId}`;
+export const runBranch = (cloud, runId) => `${cloud.cloudAgentTaskRunBranchPrefix}${runId}`;
 
 // The instructions to paste into a routine: the task prompt, then how the run reports its work. The fire
 // request passes the run id as text, and the routine treats that text as data unless the prompt names it,
 // so the instructions name the routine-fire-payload block.
 export const cloudPrompt = (task, cloud) => `${task.prompt}
 
-How this run reports its work. The routine-fire-payload block holds one line, "run-id: <id>". Create a branch named ${cloud.runBranchPrefix}<id> from the default branch and do all your work on it. When you finish, write the complete text of your final reply to a file named ${cloud.replyFile} in the repository root. That file is the one file you may add beyond what the task asks, even when the task says not to edit files. Commit all your changes, including ${cloud.replyFile}, to the run branch and push that branch to origin. Do not open a pull request and do not push any other branch.`;
+How this run reports its work. The routine-fire-payload block holds one line, "run-id: <id>". Create a branch named ${cloud.cloudAgentTaskRunBranchPrefix}<id> from the default branch and do all your work on it. When you finish, write the complete text of your final reply to a file named ${cloud.replyFile} in the repository root. That file is the one file you may add beyond what the task asks, even when the task says not to edit files. Commit all your changes, including ${cloud.replyFile}, to the run branch and push that branch to origin. Do not open a pull request and do not push any other branch.`;
 
 // Reads and checks the routine file for the given cells: one repository address per version, and a
 // routine address and token per cell. An error names the cell or version and never prints a token.

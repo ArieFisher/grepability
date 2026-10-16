@@ -171,7 +171,7 @@ test('runChecked throws when the command cannot start', () => {
 });
 
 test('rerunTest throws when the rerun command cannot start', () => {
-	const tests = {directory: 'test', extension: '.ts', titleSeparator: ' › ', rerun: ['no-such-command-for-this-test', '{file}', '{name}']};
+	const tests = {directory: 'test', extension: '.ts', verificationTitleSeparator: ' › ', reexecution: ['no-such-command-for-this-test', '{file}', '{name}']};
 	assert.throws(() => rerunTest(os.tmpdir(), 'a › b', 1, tests), /no-such-command-for-this-test/);
 });
 
@@ -180,8 +180,8 @@ test('rerunTest throws when the rerun command cannot start', () => {
 const fixedTapRerun = (lines, status) => ({
 	directory: 'test',
 	extension: '.ts',
-	titleSeparator: ' › ',
-	rerun: ['node', '-e', `console.log(${JSON.stringify(lines.join('\n'))}); process.exit(${status})`, '{file}', '{name}'],
+	verificationTitleSeparator: ' › ',
+	reexecution: ['node', '-e', `console.log(${JSON.stringify(lines.join('\n'))}); process.exit(${status})`, '{file}', '{name}'],
 });
 
 test('rerunTest counts a pass for a test that passes when a test whose name differs only in letter case fails', () => {

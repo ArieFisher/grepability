@@ -24,10 +24,10 @@ const run = ([command, ...args]) => {
 
 const typechecks = codebase.typecheck.map(command => run(command));
 const typecheck = {ok: typechecks.every(check => check.ok), output: typechecks.map(check => check.output).join('')};
-const testFiles = fs.readdirSync(path.join(root, codebase.tests.directory))
-	.filter(file => file.endsWith(codebase.tests.extension) && !codebase.tests.skip.includes(file))
-	.map(file => `${codebase.tests.directory}/${file}`);
-const tap = run([...codebase.tests.command, ...testFiles]);
+const testFiles = fs.readdirSync(path.join(root, codebase.verificationSuite.directory))
+	.filter(file => file.endsWith(codebase.verificationSuite.extension) && !codebase.verificationSuite.skip.includes(file))
+	.map(file => `${codebase.verificationSuite.directory}/${file}`);
+const tap = run([...codebase.verificationSuite.command, ...testFiles]);
 
 const tests = parseTap(tap.output);
 if (Object.keys(tests).length === 0) {

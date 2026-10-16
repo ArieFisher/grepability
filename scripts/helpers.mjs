@@ -52,7 +52,7 @@ export const renamedTitles = (diff, tests) => {
 	const testFilePrefix = file => {
 		const relative = path.posix.relative(tests.directory, file);
 		const isTestFile = !relative.startsWith('..') && relative.endsWith(tests.extension) && !tests.skip.includes(relative);
-		return isTestFile ? relative.slice(0, -tests.extension.length).split('/').join(tests.titleSeparator) : undefined;
+		return isTestFile ? relative.slice(0, -tests.extension.length).split('/').join(tests.verificationTitleSeparator) : undefined;
 	};
 
 	const headerPrefix = line => {
@@ -78,7 +78,7 @@ export const renamedTitles = (diff, tests) => {
 	const titleOf = (prefix, line) => {
 		const title = declaration.exec(line.slice(1))?.groups.title;
 		const isReadable = title !== undefined && !title.includes('${') && !/\\[^'"`\\]/.test(title);
-		return isReadable ? `${prefix}${tests.titleSeparator}${title.replaceAll(/\\(.)/g, '$1')}` : undefined;
+		return isReadable ? `${prefix}${tests.verificationTitleSeparator}${title.replaceAll(/\\(.)/g, '$1')}` : undefined;
 	};
 
 	const renames = new Map();

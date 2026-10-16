@@ -83,8 +83,8 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		const sourceChanged = [...changed].filter(item => inCorpus(item));
 		// Lines the agent had to change: the task's required lines, or for a rename task, the concept's lines that
 		// name it (a name the type checker found, or wording matching one of the concept's forms in that version).
-		if (!task.requiredLines && !concept.forms) {
-			throw new Error(`Concept ${concept.id} has no "forms" pattern in config/concepts.json, which task ${task.id} needs to pick its target lines.`);
+		if (!task.requiredLines && !concept.publishedSearchPattern) {
+			throw new Error(`Concept ${concept.id} has no "publishedSearchPattern" in config/concepts.json, which task ${task.id} needs to pick its target lines.`);
 		}
 
 		const targets = new Set(task.requiredLines ?? [...expected].filter(item => {
@@ -93,7 +93,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			}
 
 			const {file, line} = splitKey(item);
-			return matchesForms(fs.readFileSync(path.join(versionDir(version), file), 'utf8').split('\n'), line, concept.forms);
+			return matchesForms(fs.readFileSync(path.join(versionDir(version), file), 'utf8').split('\n'), line, concept.publishedSearchPattern);
 		}));
 		if (targets.size === 0) {
 			throw new Error(`Task ${task.id} has no target lines in version ${version}.`);
@@ -112,8 +112,8 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 
 		if (!skipTests) {
 			// The hidden test lands in the codebase's test directory, where the test run picks it up.
-			if (task.hiddenTest) {
-				fs.copyFileSync(path.join(projectRoot, task.hiddenTest), hiddenTestPath(run.directory));
+			if (task.withheldAcceptanceTest) {
+				fs.copyFileSync(path.join(projectRoot, task.withheldAcceptanceTest), hiddenTestPath(run.directory));
 			}
 
 			// An old result file is removed first, so a failed run cannot be scored from a stale one. Exit
@@ -129,8 +129,8 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			// A regression is a test that fails every rerun, under its new title when the diff renamed it, or a
 			// removed test. A test that passes a rerun is flaky. judgeLostTitles gives each lost title one rerun, up
 			// to its limit per test file, and reports a test file that stopped partway.
-			const testsConfig = loadCodebase().tests;
-			const {rerun, files} = regressionCandidates(baseline[version].tests, tests.tests, renamedTitles(diff, testsConfig), testsConfig.titleSeparator);
+			const testsConfig = loadCodebase().verificationSuite;
+			const {rerun, files} = regressionCandidates(baseline[version].tests, tests.tests, renamedTitles(diff, testsConfig), testsConfig.verificationTitleSeparator);
 			const stoppedPartway = [];
 			const failing = [
 				...rerun.filter(name => rerunTest(run.directory, name) === 0),
@@ -147,7 +147,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			row.typecheck = tests.typecheck;
 			row.testRegressions = failing.length;
 			row.regressedTests = failing.join('; ');
-			if (task.hiddenTest) {
+			if (task.withheldAcceptanceTest) {
 				const hidden = Object.entries(tests.tests).filter(([name]) => isHiddenTest(name));
 				row.hiddenTestPassed = hidden.length > 0 && hidden.every(([, passed]) => passed);
 			}

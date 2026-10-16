@@ -252,7 +252,7 @@ test('shuffle returns a permutation and leaves the input alone', () => {
 	assert.deepEqual([...output].sort(), input);
 });
 
-const testsConfig = loadCodebase().tests;
+const testsConfig = loadCodebase().verificationSuite;
 // One file of a diff with zero context lines: a single hunk holding the given removed and added lines.
 const hunk = (file, lines) => {
 	const count = sign => lines.filter(line => line.startsWith(sign)).length;

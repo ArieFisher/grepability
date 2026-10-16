@@ -18,7 +18,7 @@ copyCodebase(source, target);
 const texts = new Map(corpusFiles(target).map(file => [path.join(target, file), fs.readFileSync(path.join(target, file), 'utf8')]));
 const log = [];
 
-for (const rename of edits.renames) {
+for (const rename of edits.nameEdits) {
 	const absolute = path.join(target, rename.file);
 	const position = positionInText(texts.get(absolute), rename.file, rename.line, rename.name, rename.nth ?? 0);
 	const service = createService(target, texts);

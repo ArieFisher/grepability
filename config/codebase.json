@@ -11,13 +11,13 @@
 		["npx", "tsc", "--project", "tsconfig.json", "--noEmit"],
 		["npx", "tsc", "--project", "tsconfig.test.json", "--noEmit"]
 	],
-	"tests": {
+	"verificationSuite": {
 		"directory": "test",
 		"extension": ".ts",
 		"skip": ["browser.ts"],
 		"command": ["npx", "ava", "--tap", "--timeout=60s"],
-		"rerun": ["npx", "ava", "--tap", "--timeout=60s", "{file}", "--match", "{name}"],
-		"titleSeparator": " › ",
+		"reexecution": ["npx", "ava", "--tap", "--timeout=60s", "{file}", "--match", "{name}"],
+		"verificationTitleSeparator": " › ",
 		"declaration": "^\\s*test(?:\\.serial)?\\((?<quote>['\"`])(?<title>(?:\\\\.|(?!\\k<quote>)[^\\\\])*)\\k<quote>"
 	}
 }

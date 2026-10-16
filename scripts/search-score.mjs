@@ -52,12 +52,12 @@ for (const version of present) {
 	missesByVersion.set(version, misses);
 	for (const concept of concepts) {
 		const expected = new Set(truthLines(truth.concepts[concept.id]));
-		const {missed, ...rates} = searchRates(expected, search(root, concept.search), lockedByConcept.get(concept.id));
+		const {missed, ...rates} = searchRates(expected, search(root, concept.proposedSearchPattern), lockedByConcept.get(concept.id));
 		results.push({
 			version,
 			concept: concept.id,
 			control: Boolean(concept.control),
-			search: concept.search,
+			search: concept.proposedSearchPattern,
 			...rates,
 		});
 		for (const line of missed) {
@@ -78,7 +78,7 @@ const rows = concepts.map(concept => {
 		const result = results.find(item => item.version === version && item.concept === concept.id);
 		return [`${percent(result.recall)} (${result.truePositives}/${result.truthLines})`, percent(result.precision)];
 	});
-	return `| ${concept.name} | \`${concept.search}\` | ${cells.join(' | ')} |`;
+	return `| ${concept.name} | \`${concept.proposedSearchPattern}\` | ${cells.join(' | ')} |`;
 });
 const header = `| Concept | Search | ${present.map(version => `Recall ${version} | Precision ${version}`).join(' | ')} |`;
 const markdown = [

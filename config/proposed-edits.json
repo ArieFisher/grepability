@@ -1,6 +1,6 @@
 {
 	"note": "The rules for these edits are in docs/proposed-edits.md.",
-	"renames": [
+	"nameEdits": [
 		{"concept": "retry-count", "file": "source/types/retry.ts", "line": 84, "name": "attemptCount", "newName": "retryCount"},
 		{"concept": "retry-count", "file": "source/utils/normalize.ts", "line": 32, "name": "attemptCount", "newName": "retryCount"},
 		{"concept": "retry-delay", "file": "source/core/retry-timing.ts", "line": 26, "name": "retryAfter", "newName": "retryAfterDelay"},

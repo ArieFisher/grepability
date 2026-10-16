@@ -76,7 +76,7 @@ export const loadCodebase = () => {
 	}
 
 	const codebase = readJson(codebaseFile);
-	const required = ['repository', 'commit', 'corpus.directory', 'corpus.extension', 'install', 'compile', 'typecheck', 'tests.directory', 'tests.extension', 'tests.skip', 'tests.command', 'tests.rerun', 'tests.titleSeparator', 'tests.declaration'];
+	const required = ['repository', 'commit', 'corpus.directory', 'corpus.extension', 'install', 'compile', 'typecheck', 'verificationSuite.directory', 'verificationSuite.extension', 'verificationSuite.skip', 'verificationSuite.command', 'verificationSuite.reexecution', 'verificationSuite.verificationTitleSeparator', 'verificationSuite.declaration'];
 	const missing = required.filter(field => field.split('.').reduce((value, part) => value?.[part], codebase) === undefined);
 	if (missing.length > 0) {
 		throw new Error(`${codebaseFile} is missing: ${missing.join(', ')}`);
@@ -263,7 +263,7 @@ export const commentLines = root => corpusFiles(root)
 const hiddenTestName = 'hidden-acceptance';
 
 export const hiddenTestPath = root => {
-	const {directory, extension} = loadCodebase().tests;
+	const {directory, extension} = loadCodebase().verificationSuite;
 	return path.join(root, directory, `${hiddenTestName}${extension}`);
 };
 
@@ -278,10 +278,10 @@ export const rerunCount = 3;
 // A `*` in the name is escaped so a runner that matches names as globs takes it literally. A runner that
 // matches names in any letter case also executes a test whose name differs only in case, so a rerun counts as
 // passed only when parseTap reads the exact name as passing; a runner executing one test file prints names with no file.
-export const rerunTest = (root, title, times = rerunCount, tests = loadCodebase().tests) => {
-	const [file, ...nameParts] = title.split(tests.titleSeparator);
-	const name = nameParts.join(tests.titleSeparator);
-	const [command, ...args] = tests.rerun.map(part => part
+export const rerunTest = (root, title, times = rerunCount, tests = loadCodebase().verificationSuite) => {
+	const [file, ...nameParts] = title.split(tests.verificationTitleSeparator);
+	const name = nameParts.join(tests.verificationTitleSeparator);
+	const [command, ...args] = tests.reexecution.map(part => part
 		.replaceAll('{file}', `${tests.directory}/${file}${tests.extension}`)
 		.replaceAll('{name}', name.replaceAll('*', String.raw`\*`)));
 	let passed = 0;

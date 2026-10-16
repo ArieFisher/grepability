@@ -48,7 +48,7 @@ test('cloudPrompt keeps the task prompt and names the payload, the run branch, a
 	const prompt = cloudPrompt(task, cloud);
 	assert.ok(prompt.startsWith(task.prompt));
 	assert.match(prompt, /routine-fire-payload/);
-	assert.ok(prompt.includes(`${cloud.runBranchPrefix}<id>`));
+	assert.ok(prompt.includes(`${cloud.cloudAgentTaskRunBranchPrefix}<id>`));
 	assert.ok(prompt.includes(cloud.replyFile));
 });
 
@@ -120,7 +120,7 @@ test('buildRunRepository commits a version and the start files as one commit on 
 }));
 
 test('fetchRunBranches and readRunBranch return the diff and the reply of a pushed run branch', () => withScratch(scratch => {
-	const cloud = {defaultBranch: 'main', runBranchPrefix: 'run-', replyFile: 'REPLY.md'};
+	const cloud = {defaultBranch: 'main', cloudAgentTaskRunBranchPrefix: 'run-', replyFile: 'REPLY.md'};
 	const origin = path.join(scratch, 'origin');
 	fs.mkdirSync(origin);
 	const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', '-c', `core.hooksPath=${os.devNull}`, ...args], {cwd, encoding: 'utf8'});
