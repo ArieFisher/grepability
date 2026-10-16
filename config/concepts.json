@@ -503,12 +503,6 @@
 				},
 				{
 					"file": "source/core/Ky.ts",
-					"line": 1224,
-					"text": "abort controller",
-					"reason": "Comment whose only matched text names the standard library AbortController."
-				},
-				{
-					"file": "source/core/Ky.ts",
 					"line": 1255,
 					"text": ".abort()",
 					"reason": "Standard library method abort()."

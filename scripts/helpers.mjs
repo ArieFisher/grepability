@@ -603,9 +603,9 @@ export const findScore = (listed, expected) => {
 
 // The locked lines of each concept, as a map from concept id to a set of file:line keys. Each concept in the
 // concept configuration holds a lockedLines array, empty when nothing is locked. `readLine(file, line)` returns
-// the text of one line of one version, or undefined past the end of the file. A concept without the array, an
-// entry missing its file, line, text, or reason, or an entry whose text is not on its line throws, so a
-// misspelled key or a moved line never reaches the search score.
+// the text of one line of one version, or undefined past the end of the file. readLockedLines throws on a concept
+// without the array, an entry missing its file, line, text, or reason, and an entry whose text is not on its line,
+// so the search-score script stops before it scores with a misspelled key or a stale line number.
 export const readLockedLines = (concepts, readLine) => new Map(concepts.map(concept => {
 	if (!Array.isArray(concept.lockedLines)) {
 		throw new TypeError(`Concept ${concept.id}: the lockedLines array is missing; write [] when nothing is locked.`);
@@ -623,16 +623,16 @@ export const readLockedLines = (concepts, readLine) => new Map(concepts.map(conc
 
 		const lineKey = key(entry.file, entry.line);
 		if (!readLine(entry.file, entry.line)?.includes(entry.text)) {
-			throw new Error(`Concept ${concept.id}: the locked line ${lineKey} does not hold ${entry.text}, so the line moved or the entry is wrong.`);
+			throw new Error(`Concept ${concept.id}: the locked line ${lineKey} does not hold ${entry.text}. Correct the entry's line number or text.`);
 		}
 
 		return lineKey;
 	}))];
 }));
 
-// The two parts of the search score for one concept in one version, with its locked lines left out of the
-// ground truth lines (the find rate denominator), the hits (the term distinctiveness denominator), and the
-// misses. A part with nothing to divide by is null.
+// The two parts of the search score for one concept in one version. searchRates removes the concept's locked
+// lines from the ground truth lines (the find rate denominator), the hits (the term distinctiveness
+// denominator), and the misses. A part with nothing to divide by is null.
 export const searchRates = (expected, hits, locked) => {
 	const truthLines = [...expected].filter(line => !locked.has(line));
 	const scoredHits = new Set([...hits].filter(hit => !locked.has(hit)));

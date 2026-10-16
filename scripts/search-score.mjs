@@ -1,6 +1,6 @@
 // Search score: one case-insensitive ripgrep search per concept per version, scored against the ground truth.
 // Find rate: share of the concept's lines the search finds. Term distinctiveness: share of hits that belong to the concept.
-// The script leaves each concept's locked lines, listed in the concept configuration, out of both parts in both versions.
+// The script removes each concept's locked lines, which the concept configuration lists, from both parts in both versions.
 // Writes results/search-score.{json,md} and results/misses-<version>.csv (the lines each search missed;
 // the published codebase's misses are the worklist for building the proposed codebase).
 // Usage: node search-score.mjs

@@ -76,7 +76,10 @@
 		{"concept": "user-abort", "file": "source/types/options.ts", "line": 509, "from": "an absent signal", "to": "an absent abort signal"},
 		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 443, "from": "forwarding its signal", "to": "forwarding its abort signal"},
 		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 922, "from": "Aborting the request's", "to": "Triggering the request's"},
-		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1147, "from": "Reset abortController if it was aborted", "to": "Reset internalController if its signal fired"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1142, "from": "user-provided signal for delay, not our internal abortController", "to": "user-provided abort signal for delay, not our #internalController"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1147, "from": "Reset abortController if it was aborted", "to": "Reset #internalController if its signal fired"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1224, "from": "the abort controller used by", "to": "the controller used by"},
+		{"concept": "user-abort", "file": "source/utils/merge.ts", "line": 484, "from": "the `supportsAbortSignal` check is removed", "to": "the `supportsSignalAny` check for abort signals is removed"},
 		{"concept": "user-abort", "file": "source/utils/timeout.ts", "line": 31, "from": "so it cannot abort a later retry attempt", "to": "so it cannot stop a later retry attempt"},
 		{"concept": "user-abort", "file": "source/types/ky.ts", "line": 128, "from": "makes Ky abort and return", "to": "makes Ky stop and return"},
 		{"concept": "user-abort", "file": "source/types/ky.ts", "line": 128, "from": "cause Ky to abort and then throw", "to": "cause Ky to stop and then throw"}
