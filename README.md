@@ -39,22 +39,27 @@ For the definition of every term below, see [docs/vocabulary.md](docs/vocabulary
      
 3. **Design a measure** for grepability  
      
-   Use the harmonic mean of:  
+   `grepability` is a blend of 2 metrics[^1]:  
+
+   1. **how much of the right things did it find (AKA: recall)**  
+
+      * **Definition:** The share of the lines where the concept appears that the search returns.  
+      * **Formula:** True positives / number of lines in the ground truth  
+      * **Example:** If the concept appears on 10 lines and the search returns 9 of them, recall is **90%**.  
+      * **Interpretation**:  A high score means that the concepts are *consistently* represented across the codebase using the same terms.  
+        A low score indicates the need to refactor concept names for consistency.
+
+   2. **how much of the things it found were right (AKA: precision)**  
+
+      * **Definition:** The share of the lines the search returns that belong to the concept.  
+      * **Formula:** true positives / (true positives \+ false positives)  
+      * **Example:** If the search returns all 10 lines of the concept and 90 unrelated lines that share a word with it, precision is **10%** (10 of 100 lines returned were correct).  
+      * **Interpretation**: A high score means that the terms chosen to represent concepts **distinguish** them easily. So a concept that was represented by a broad term (such as "delay") that matches every line of the concept \- along with hundreds of unrelated lines \- would hurt the ‘grepability’ of this code base.  
+        A low score indicates the need to refactor concept names to be more distinguishing.
      
-4. the **share of the concept's appearances** found by a pattern search (i.e. high true positives)  
-   e.g. if the concept appears in the codebase 10 times and the pattern search finds 9 of them, this component scores 90%.  It is more ‘grepable’ than a codebase that scores 70%.  
-   A high score means that the concepts are **consistently** represented across the codebase using the same terms.  
-   A low score indicates the need to refactor concept names for consistency.  
+4. **Measure**: the grepability of the two codebases (control and ground truth)  
      
-5. the share of the pattern search results **that belong** to the concept (i.e. low false positives)  
-   e.g. in the example above, if the pattern search found 9 of the 10 instances but also found 80 ‘false positives’ \- results that were *unrelated* to the concept (but may have shared a word), then this component scores 10% (9 of 90).  
-     
-   A high score means that the terms chosen to represent concepts **distinguish** them easily. So a concept that was represented by a broad term (such as "delay") that matches every line of the concept \- along with hundreds of unrelated lines \- would hurt the ‘grepability’ of this code base.  
-   A low score indicates the need to refactor concept names to be more distinguishing.  
-     
-6. **Measure**: the grepability of the two codebases (control and ground truth)  
-     
-7. **Test** if the *same prompts* are *more effective* on a grepable codebase
+5. **Test** if the *same prompts* are *more effective* on a grepable codebase
 
 *Test approach:*
 
@@ -80,8 +85,49 @@ For the definition of every term below, see [docs/vocabulary.md](docs/vocabulary
 
 ## The Results
 
-\<tbd\>
+The **published codebase** is Ky as published. The **proposed codebase** is the edited copy.
+
+### Grepability rose from 83% to 100%
+
+One pattern search per concept, scored on both measures above:
+
+| Concept | Published codebase | Proposed codebase |
+|---|---|---|
+| Retry count | 83% | 100% |
+| Retry delay | 82% | 100% |
+| Progress callback | 86% | 100% |
+| Caller abort | 80% | 100% |
+| Jitter (control) | 100% | 100% |
+| **Overall** | **83%** | **100%** |
+
+In the published codebase, the pattern searches for the four inconsistently named concepts found between 71% and 77% of each concept's appearances. In the proposed codebase, each pattern search found all of them. Jitter, a concept already named consistently in the published codebase, scored 100% in both, as a control should.
+
+### Agents succeeded 26 times in 30 on the proposed codebase, and 5 times in 30 on the published one
+
+Success means the agent met every condition of its task. For the two editing tasks, that includes code that passes the type check and all of the library's own individual codebase verifications, and for the breaking change, a withheld acceptance test that checks the behaviour stayed the same.
+
+| Task | Published codebase | Proposed codebase |
+|---|---|---|
+| 1: Find | 0 of 10 | 10 of 10 |
+| 2: Refactor | 0 of 10 | 9 of 10 |
+| 3: Breaking change | 5 of 10 | 7 of 10 |
+| **All tasks** | **5 of 30 (17%)** | **26 of 30 (87%)** |
+
+With 10 agent task runs per codebase, the gaps on the find and refactor tasks are too large to arise by chance. The gap on the breaking-change task could arise by chance.
+
+**Where the agents fell short.** In the published codebase, the agents found and renamed every property name, and fell short on comments and parameters:
+
+- Find: the agents found, on average, 34.6 of the concept's 38 comment lines.
+- Refactor: the agents changed, on average, 24.6 of the 32 comment lines they had to change, and 0.4 of the 2 parameter lines.
+
+In the proposed codebase, the agents found and changed every line of every kind.
+
+**Effort.** On the proposed codebase, the agents made fewer searches in every task (on average 1.6 against 2.6 for find, 7.1 against 9.6 for refactor, and 4.5 against 7.7 for the breaking change). They also cost more on average in every task, at between $0.12 and $0.33 per agent task run against between $0.07 and $0.14.
+
+**Edits nobody asked for.** A blind reviewer (an AI stand-in), shown no codebase version, marked edits as incorrect or not asked for in 6 and 7 of 10 refactor agent task runs (published and proposed codebase), and in 4 and 5 of 10 breaking-change agent task runs. The rate was about the same in both codebases, so it does not explain the gap in success.
 
 ## Conclusion
 
 \<tbd\>  
+
+[^1]: The two metrics are blended using the harmonic mean to yield an F1-score (which we call here `grepability` or simply ‘search score’ ) and define as: `2 * (Precision * Recall) / (Precision + Recall)`. In the example shown, the `grepability` score is 18%.
