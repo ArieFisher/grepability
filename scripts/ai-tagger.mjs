@@ -10,7 +10,7 @@ import path from 'node:path';
 import {acceptTags, checkFlags, codebaseVersionDir, fromCsv, integerOption, loadConcepts, loadTasks, option, projectRoot, publishedCodebaseVersion, toCsv} from './lib.mjs';
 
 const argv = process.argv.slice(2);
-checkFlags(argv, ['model', 'chunk', 'parallel', 'context']);
+checkFlags(argv, ['model', 'chunk', 'parallel', 'context'], [], 1);
 const name = argv[0];
 if (!name || name.startsWith('--')) {
 	throw new Error('Usage: node ai-tagger.mjs <tagger-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]');

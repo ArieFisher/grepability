@@ -17,10 +17,11 @@ export const option = (argv, name, fallback) => {
 };
 
 // Stops a script on an argument it does not take: a flag outside valueFlags and switchFlags, or a word
-// that follows no value flag. Without it, a mistyped or retired flag drops out and the script falls back
-// to its defaults, which for the agent task run scripts means starting every default agent task run.
-export const checkFlags = (argv, valueFlags, switchFlags = []) => {
-	for (let index = 0; index < argv.length; index++) {
+// that follows no value flag, after the first `positional` arguments. Without it, a mistyped or retired
+// flag drops out and the script falls back to its defaults, which for the agent task run scripts means
+// starting every default agent task run.
+export const checkFlags = (argv, valueFlags, switchFlags = [], positional = 0) => {
+	for (let index = positional; index < argv.length; index++) {
 		const name = argv[index].replace(/^--/, '');
 		if (valueFlags.includes(name) && argv[index].startsWith('--')) {
 			index++;

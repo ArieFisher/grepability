@@ -73,6 +73,8 @@ test('checkFlags accepts known flags and their values and throws on an unknown o
 	assert.throws(() => checkFlags(['--runs', '1'], ['agent-task-runs']), /--runs/);
 	assert.throws(() => checkFlags(['--skip-tests'], [], ['skip-verification-suite']), /--skip-tests/);
 	assert.throws(() => checkFlags(['--tasks', 'rename', 'extra'], ['tasks']), /extra/);
+	assert.doesNotThrow(() => checkFlags(['ai-3', '--model', 'sonnet'], ['model'], [], 1));
+	assert.throws(() => checkFlags(['ai-3', 'ai-4'], ['model'], [], 1), /ai-4/);
 });
 
 test('percent rounds a share to a whole percent and shows n/a for no value', () => {
