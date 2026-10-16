@@ -566,6 +566,12 @@
 					"line": 25,
 					"text": ".abort()",
 					"reason": "Standard library method abort()."
+				},
+				{
+					"file": "source/utils/delay.ts",
+					"line": 6,
+					"text": "InternalOptions['signal']",
+					"reason": "Public Ky option signal, whose name and type the sleep helper property copies."
 				}
 			]
 		},
