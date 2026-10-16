@@ -1,6 +1,6 @@
 # grepable code
 
-AI **coding agents share one specific shortcoming**:  the part that *generates* code is not designed to work with the part that *finds* the code.  In essense it generates code, comments, and documentation that it does not reliably find again.  It’s hard to believe this but once you turn over that rock, you can’t unsee it.
+AI **coding agents share one specific shortcoming**:  the part that *generates* code is not designed to work with the part that *finds* the code.  In essence it generates code, comments, and documentation that it does not reliably find again.  It’s hard to believe this but once you turn over that rock, you can’t unsee it.
 
 As such, the codebase almost immediately starts diverging from itself, accumulating multiple names for the same thing, overlapping logic, stale documentation, comments that  once accurately described but now actively mislead the reader (human or LLM). 
 
@@ -8,12 +8,12 @@ And even if you never  read that code, you will notice its effects.  Because as 
 
 We can account for agents’ shortcoming by designing ‘grepable code’; which in turn can improve - across the board, regardless of harness, language, or vendor - agentic coders’ productivity, quality, reliability, speed, and cost.
 
-I set out to test this hypthesis:  **are agents more effective on 'grepable’ code?** 
+I set out to test this hypothesis:  **are agents more effective on 'grepable’ code?** 
 
 First I defined and then designed a test to **measure grepability**, and then tested if more grepable codebases improved coding agent performance.
 
 1. `grepability`: whether a non-AI text search (`grep`) can identify the concept wherever it appears within the codebase (code or prose) without matching other concepts.
-2. `agentic effectivenes`: whether that changes how effective an AI agent is on executing its tasks
+2. `agentic effectiveness`: whether that changes how effective an AI agent is on executing its tasks
 
 ## background
 
@@ -40,42 +40,42 @@ At least that’s the narrative.  But can we test it?  Can we go further and mea
 1. **Find something real to test**: Choose a published codebase that is small, well-regarded, and has few if any dependencies, and, where the same concept(s) are represented differently within it.\
    We chose: [KY - Delightful HTTP Requests - a tiny and elegant HTTP client.](https://github.com/sindresorhus/ky)
 
-2. **Create ground truth**: Make a copy of the codebase and edit it such that the each concept in it carries only a single name. The edits were made such that they did not change behaviour or line number.\
+2. **Create ground truth**: Make a copy of the codebase and edit it such that each concept in it carries only a single name. The edits were made such that they did not change behaviour or line number.\
    \
    For example, Ky has a concept of `delay` that is referred to in variants of retry, rate limit, sleep, number… and they were all given a common name:\
    e.g. `retryAfter` —&gt; `retryAfterDelay`, `rateLimitReset` —&gt; `rateLimitResetDelay`, `“// Must return a non-negative number...”` —&gt; `”// Must return a non-negative delay”` , …
 
 
-1) **Design a measure** for grepability
+3. **Design a measure** for grepability
 
-`grepability` was defined as a blend of 2 metrics[^1]:
+   `grepability` was defined as a blend of 2 metrics[^1]:
 
-- Measure 1: **how much of the right things were found (AKA: recall)**
+   - Measure 1: **how much of the right things were found (AKA: recall)**
 
-  - **Definition:** The share of the lines where the concept appears that the search returns.
-  - **Formula:** True positives / number of lines in the ground truth
-  - **Example:** If the concept appears on 10 lines and the search returns 9 of them, recall is **90%**.
-  - **Interpretation**: A high score means that the concepts are *consistently* represented across the codebase using the same terms.\
-    A low score indicates the need to refactor concept names for consistency.
+     - **Definition:** The share of the lines where the concept appears that the search returns.
+     - **Formula:** True positives / number of lines in the ground truth
+     - **Example:** If the concept appears on 10 lines and the search returns 9 of them, recall is **90%**.
+     - **Interpretation**: A high score means that the concepts are *consistently* represented across the codebase using the same terms.\
+       A low score indicates the need to refactor concept names for consistency.
 
-- Measure 2: **how much of the things it found were right (AKA: precision)**
+   - Measure 2: **how much of the things it found were right (AKA: precision)**
 
-  - **Definition:** The share of the lines the search returns that belong to the concept.
-  - **Formula:** true positives / (true positives + false positives)
-  - **Example:** If the search returns all 10 lines of the concept and 90 unrelated lines that share a word with it, precision is **10%** (10 of 100 lines returned were correct).
-  - **Interpretation**: A high score means that the concepts’ terms are **distinguished**. So a concept that was represented by a broad term (such as “rate") that matches every line of the concept - along with hundreds of unrelated lines - would hurt the ‘grepability’ of this code base.\
-    A low score indicates the need to refactor by chosing concept names that are more distinguishing.
+     - **Definition:** The share of the lines the search returns that belong to the concept.
+     - **Formula:** true positives / (true positives + false positives)
+     - **Example:** If the search returns all 10 lines of the concept and 90 unrelated lines that share a word with it, precision is **10%** (10 of 100 lines returned were correct).
+     - **Interpretation**: A high score means that the concepts’ terms are **distinguished**. So a concept that was represented by a broad term (such as “rate") that matches every line of the concept - along with hundreds of unrelated lines - would hurt the ‘grepability’ of this code base.\
+       A low score indicates the need to refactor by choosing concept names that are more distinguishing.
 
-2. **Measure `search score`)**: the grepability of the two versions of that codebases (the published Ky as it is right now, and, the copy of it that where concept names have been harmonized).
+4. **Measure (`search score`)**: the grepability of the two versions of that codebases (the published Ky as it is right now, and, the copy of it that where concept names have been harmonized).
 
-3. **Test** if the *same prompts* are *more effective* on a grepable codebase `agentic effectiveness score`)
+5. **Test** if the *same prompts* are *more effective* on a grepable codebase (`agentic effectiveness score`)
 
    *Approach:*
 
-- Two Claude Code agents were given the *same task* (i.e. the same prompt) and one of the two codebases.
-- Each task was repeated ten times. So 20 agents were given the *same* prompt: ten asked to work on the original codebase as published, ten on the edited one.
-- This set of 20 agent task runs was repeated twice more, but with an increasingly complicated task.  So 20 agents were run 3 times, given increasingly complicated tasks to do. [^2}\]
-- After all 60 agent task runs completed, their output was collated and scored
+   - Two Claude Code agents were given the *same task* (i.e. the same prompt) and one of the two codebases.
+   - Each task was repeated ten times. So 20 agents were given the *same* prompt: ten asked to work on the original codebase as published, ten on the edited one.
+   - This set of 20 agent task runs was repeated twice more, but with an increasingly complicated task.  So 20 agents were run 3 times, given increasingly complicated tasks to do.[^2]
+   - After all 60 agent task runs completed, their output was collated and scored
 
 **Task 1: Find**
 
@@ -93,7 +93,7 @@ At least that’s the narrative.  But can we test it?  Can we go further and mea
 
 ## The Results
 
-The **published codebase** is Ky as currently published and publically available. The **proposed codebase** is the edited copy.
+The **published codebase** is Ky as currently published and publicly available. The **proposed codebase** is the edited copy.
 
 ### Grepability rose from 83% to 100%
 
@@ -138,7 +138,7 @@ In the proposed codebase, the agents found and changed every line of every kind.
 
 [^1]: The two metrics are blended using the harmonic mean to yield an F1-score (which we call here `grepability` or simply ‘search score’ ) and define as: `2 * (Precision * Recall) / (Precision + Recall)`. In the example shown, the `grepability` score is 18%.
 
-[^2}\]: The agents had no knowledge of the hypothesis or each other, they simply did the task they were assigned. 
+[^2]: The agents had no knowledge of the hypothesis or each other, they simply did the task they were assigned.
 
     Each agent task run is its own Claude Code session in a fresh agent task run copy of the codebase, with the same folder name and a single fresh commit, so the agent also could not tell which codebase version it was working on.
 
