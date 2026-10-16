@@ -1,4 +1,4 @@
-// Unit tests for the checks that make the scripts stop on bad input instead of recording a result.
+// Self-tests for the checks that make the scripts stop on bad input instead of recording a result.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -35,7 +35,7 @@ test('installCodebase runs the install command in the directory it is given', ()
 
 test('installCodebase throws when the command fails, cannot start, or lacks --ignore-scripts', () => {
 	assert.throws(() => installCodebase(os.tmpdir(), ['node', '-e', 'process.exit(3)', '--', '--ignore-scripts']), /install command.*exited with status 3/s);
-	assert.throws(() => installCodebase(os.tmpdir(), ['no-such-command-for-this-test', '--ignore-scripts']), /no-such-command-for-this-test/);
+	assert.throws(() => installCodebase(os.tmpdir(), ['no-such-command-for-this-self-test', '--ignore-scripts']), /no-such-command-for-this-self-test/);
 	assert.throws(() => installCodebase(os.tmpdir(), ['node', '-e', '0']), /--ignore-scripts/);
 });
 
@@ -55,12 +55,12 @@ test('compileCodebase runs the compile command in the directory it is given', ()
 
 test('compileCodebase throws when the compile command fails or cannot start', () => {
 	assert.throws(() => compileCodebase(os.tmpdir(), ['node', '-e', 'process.exit(2)']), /compile command.*exited with status 2/s);
-	assert.throws(() => compileCodebase(os.tmpdir(), ['no-such-command-for-this-test']), /no-such-command-for-this-test/);
+	assert.throws(() => compileCodebase(os.tmpdir(), ['no-such-command-for-this-self-test']), /no-such-command-for-this-self-test/);
 });
 
 test('integerOption returns a whole number at or above the minimum', () => {
-	assert.equal(integerOption(['--runs', '5'], 'runs', 10, 1), 5);
-	assert.equal(integerOption([], 'runs', 10, 1), 10);
+	assert.equal(integerOption(['--agent-task-runs', '5'], 'agent-task-runs', 10, 1), 5);
+	assert.equal(integerOption([], 'agent-task-runs', 10, 1), 10);
 	assert.equal(integerOption(['--context', '0'], 'context', 3, 0), 0);
 });
 
@@ -114,22 +114,22 @@ test('acceptTags rejects an item number outside the chunk and a tag list that is
 	assert.throws(() => acceptTags('no object here', new Set([3]), ids), /No JSON object/);
 });
 
-const reviewer = (name, rows) => ({name, tags: new Map(rows.map(([rowKey, ...ids]) => [rowKey, {ids: new Set(ids)}]))});
+const tagger = (name, rows) => ({name, tags: new Map(rows.map(([rowKey, ...ids]) => [rowKey, {ids: new Set(ids)}]))});
 
-test('checkTaggers accepts two reviewers that cover the sheet with known concept ids', () => {
+test('checkTaggers accepts two taggers that cover the sheet with known concept ids', () => {
 	const sheet = ['a.ts:1', 'a.ts:2'];
-	const reviewers = [reviewer('one', [['a.ts:1', 'retry-count'], ['a.ts:2']]), reviewer('two', [['a.ts:1'], ['a.ts:2']])];
-	assert.doesNotThrow(() => checkTaggers(sheet, reviewers, new Set(['retry-count'])));
+	const taggers = [tagger('one', [['a.ts:1', 'retry-count'], ['a.ts:2']]), tagger('two', [['a.ts:1'], ['a.ts:2']])];
+	assert.doesNotThrow(() => checkTaggers(sheet, taggers, new Set(['retry-count'])));
 });
 
-test('checkTaggers rejects one reviewer, mismatched rows, and unknown concept ids', () => {
+test('checkTaggers rejects one tagger, mismatched rows, and unknown concept ids', () => {
 	const sheet = ['a.ts:1', 'a.ts:2'];
 	const known = new Set(['retry-count']);
-	const full = name => reviewer(name, [['a.ts:1'], ['a.ts:2']]);
+	const full = name => tagger(name, [['a.ts:1'], ['a.ts:2']]);
 	assert.throws(() => checkTaggers(sheet, [full('one')], known), /at least two taggers/);
-	assert.throws(() => checkTaggers(sheet, [full('one'), reviewer('two', [['a.ts:1']])], known), /two.*a\.ts:2/s);
-	assert.throws(() => checkTaggers(sheet, [full('one'), reviewer('two', [['a.ts:1'], ['a.ts:2'], ['a.ts:3']])], known), /two.*a\.ts:3/s);
-	assert.throws(() => checkTaggers(sheet, [full('one'), reviewer('two', [['a.ts:1', 'retry-cuont'], ['a.ts:2']])], known), /retry-cuont/);
+	assert.throws(() => checkTaggers(sheet, [full('one'), tagger('two', [['a.ts:1']])], known), /two.*a\.ts:2/s);
+	assert.throws(() => checkTaggers(sheet, [full('one'), tagger('two', [['a.ts:1'], ['a.ts:2'], ['a.ts:3']])], known), /two.*a\.ts:3/s);
+	assert.throws(() => checkTaggers(sheet, [full('one'), tagger('two', [['a.ts:1', 'retry-cuont'], ['a.ts:2']])], known), /retry-cuont/);
 });
 
 const lockedFile = new Map([[1, 'signal.addEventListener(\'abort\', onAbort);'], [2, 'const delay = 5;']]);
@@ -167,37 +167,38 @@ test('runChecked returns the result of a command that ran, whatever its exit sta
 });
 
 test('runChecked throws when the command cannot start', () => {
-	assert.throws(() => runChecked('no-such-command-for-this-test', []), /no-such-command-for-this-test/);
+	assert.throws(() => runChecked('no-such-command-for-this-self-test', []), /no-such-command-for-this-self-test/);
 });
 
-test('reexecuteVerification throws when the rerun command cannot start', () => {
-	const tests = {directory: 'test', extension: '.ts', verificationTitleSeparator: ' › ', reexecution: ['no-such-command-for-this-test', '{file}', '{name}']};
-	assert.throws(() => reexecuteVerification(os.tmpdir(), 'a › b', 1, tests), /no-such-command-for-this-test/);
+test('reexecuteVerification throws when the re-execution command cannot start', () => {
+	const verificationSuite = {directory: 'test', extension: '.ts', verificationTitleSeparator: ' › ', reexecution: ['no-such-command-for-this-self-test', '{file}', '{name}']};
+	assert.throws(() => reexecuteVerification(os.tmpdir(), 'a › b', 1, verificationSuite), /no-such-command-for-this-self-test/);
 });
 
-// A rerun command that prints fixed TAP lines, as a runner prints them when it executes one test file, with no
-// file in the titles. The runner matches names in any letter case, so one rerun can execute two tests.
-const fixedTapRerun = (lines, status) => ({
+// A re-execution command that prints fixed TAP lines, as a runner prints them when it executes one verification file,
+// with no file in the titles. The runner matches names in any letter case, so one re-execution can execute two
+// individual codebase verifications.
+const fixedTapReexecution = (lines, status) => ({
 	directory: 'test',
 	extension: '.ts',
 	verificationTitleSeparator: ' › ',
 	reexecution: ['node', '-e', `console.log(${JSON.stringify(lines.join('\n'))}); process.exit(${status})`, '{file}', '{name}'],
 });
 
-test('reexecuteVerification counts a pass for a test that passes when a test whose name differs only in letter case fails', () => {
-	const tests = fixedTapRerun(['ok 1 - Retry works', 'not ok 2 - retry works'], 1);
-	assert.equal(reexecuteVerification(os.tmpdir(), 'a › Retry works', 2, tests), 2);
-	assert.equal(reexecuteVerification(os.tmpdir(), 'a › retry works', 2, tests), 0);
+test('reexecuteVerification counts a pass for an individual codebase verification that passes when one whose name differs only in letter case fails', () => {
+	const verificationSuite = fixedTapReexecution(['ok 1 - Retry works', 'not ok 2 - retry works'], 1);
+	assert.equal(reexecuteVerification(os.tmpdir(), 'a › Retry works', 2, verificationSuite), 2);
+	assert.equal(reexecuteVerification(os.tmpdir(), 'a › retry works', 2, verificationSuite), 0);
 });
 
-test('reexecuteVerification counts no pass for a missing test when a test whose name differs only in letter case passes', () => {
-	const tests = fixedTapRerun(['ok 1 - Retry works'], 0);
-	assert.equal(reexecuteVerification(os.tmpdir(), 'a › retry works', 2, tests), 0);
+test('reexecuteVerification counts no pass for a missing individual codebase verification when one whose name differs only in letter case passes', () => {
+	const verificationSuite = fixedTapReexecution(['ok 1 - Retry works'], 0);
+	assert.equal(reexecuteVerification(os.tmpdir(), 'a › retry works', 2, verificationSuite), 0);
 });
 
-test('reexecuteVerification reads a name holding a * as printed, and counts no pass for a skipped test', () => {
-	assert.equal(reexecuteVerification(os.tmpdir(), 'a › x * y', 1, fixedTapRerun(['ok 1 - x * y'], 0)), 1);
-	assert.equal(reexecuteVerification(os.tmpdir(), 'a › x', 1, fixedTapRerun(['ok 1 - x # SKIP'], 0)), 0);
+test('reexecuteVerification reads a name holding a * as printed, and counts no pass for a skipped individual codebase verification', () => {
+	assert.equal(reexecuteVerification(os.tmpdir(), 'a › x * y', 1, fixedTapReexecution(['ok 1 - x * y'], 0)), 1);
+	assert.equal(reexecuteVerification(os.tmpdir(), 'a › x', 1, fixedTapReexecution(['ok 1 - x # SKIP'], 0)), 0);
 });
 
 test('createService throws when the tsconfig is missing or invalid', () => {

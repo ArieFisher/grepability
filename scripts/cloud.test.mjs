@@ -1,4 +1,4 @@
-// Unit tests for the cloud run helpers in cloud.mjs. Run: node --test scripts/
+// Self-tests for the cloud agent task run helpers in cloud.mjs. Run: node --test scripts/
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -14,10 +14,10 @@ const goodFile = {
 	routines: {[cellKey('find-all', 'published')]: routine},
 };
 
-const withScratch = run => {
-	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-test-'));
+const withScratch = callback => {
+	const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-self-test-'));
 	try {
-		return run(scratch);
+		return callback(scratch);
 	} finally {
 		fs.rmSync(scratch, {recursive: true, force: true});
 	}
@@ -42,7 +42,7 @@ test('loadCloud reads the cloud settings and the configuration holds them', () =
 	assert.ok(Number.isInteger(cloud.pendingLimitMinutes));
 });
 
-test('cloudPrompt keeps the task prompt and names the payload, the run branch, and the reply file', () => {
+test('cloudPrompt keeps the task prompt and names the payload, the cloud agent task run branch, and the reply file', () => {
 	const cloud = loadCloud();
 	const task = loadTasks().tasks[0];
 	const prompt = cloudPrompt(task, cloud);
@@ -67,7 +67,7 @@ test('loadRoutines throws on a missing file, a missing repository, a missing cel
 	assert.throws(() => loadRoutines(cells, writeRoutines(scratch, badToken)), error => /token/.test(error.message) && !error.message.includes('not-a-token'));
 }));
 
-test('fireRoutine posts the run id with the bearer token and returns the session', async () => {
+test('fireRoutine posts the agent task run id with the bearer token and returns the session', async () => {
 	const calls = [];
 	const fetchStub = async (url, options) => {
 		calls.push({url, options});
@@ -104,7 +104,7 @@ test('startFiles writes a start hook that runs the install and compile commands 
 	assert.match(files['.claude/prepare.sh'], /\{ npm install && npm run build; \} >\/tmp\/prepare\.log 2>&1/);
 });
 
-test('buildCloudAgentTaskRunRepository commits a version and the start files as one commit on the default branch, without dependencies', () => withScratch(scratch => {
+test('buildCloudAgentTaskRunRepository commits a codebase version and the start files as one commit on the default branch, without dependencies', () => withScratch(scratch => {
 	const cloud = {defaultBranch: 'main'};
 	const source = path.join(scratch, 'source');
 	fs.mkdirSync(path.join(source, 'src'), {recursive: true});
@@ -119,7 +119,7 @@ test('buildCloudAgentTaskRunRepository commits a version and the start files as 
 	assert.ok(!fs.existsSync(path.join(directory, 'node_modules')));
 }));
 
-test('fetchCloudAgentTaskRunBranches and readCloudAgentTaskRunBranch return the diff and the reply of a pushed run branch', () => withScratch(scratch => {
+test('fetchCloudAgentTaskRunBranches and readCloudAgentTaskRunBranch return the diff and the reply of a pushed cloud agent task run branch', () => withScratch(scratch => {
 	const cloud = {defaultBranch: 'main', cloudAgentTaskRunBranchPrefix: 'run-', replyFile: 'REPLY.md'};
 	const origin = path.join(scratch, 'origin');
 	fs.mkdirSync(origin);
@@ -144,7 +144,7 @@ test('fetchCloudAgentTaskRunBranches and readCloudAgentTaskRunBranch return the 
 	assert.equal(readCloudAgentTaskRunBranch(cache, cloud, 'ffffffff'), null);
 }));
 
-test('applyDiff reproduces a run branch edit in a run copy, and fails on a diff that does not fit', () => withScratch(scratch => {
+test('applyDiff reproduces a cloud agent task run branch edit in an agent task run copy, and fails on a diff that does not fit', () => withScratch(scratch => {
 	const source = path.join(scratch, 'source');
 	fs.mkdirSync(source);
 	fs.writeFileSync(path.join(source, 'a.txt'), 'one\ntwo\nthree\n');
