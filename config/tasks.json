@@ -5,11 +5,6 @@
 		"maxBudgetUsd": 5,
 		"timeoutMinutes": 30,
 		"allowedTools": [
-			"Read",
-			"Grep",
-			"Glob",
-			"Edit",
-			"Write",
 			"Bash(npx tsc:*)",
 			"Bash(npx ava:*)",
 			"Bash(node:*)",
