@@ -17,7 +17,7 @@
 		{"concept": "user-abort", "file": "source/core/constants.ts", "line": 34, "name": "supportsAbortSignal", "newName": "supportsSignalAny"},
 		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 439, "name": "#abortController", "newName": "#internalController"}
 	],
-	"comments": [
+	"wordingEdits": [
 		{"concept": "retry-count", "file": "source/types/retry.ts", "line": 16, "from": "The number of retries attempted.", "to": "The retry count."},
 		{"concept": "retry-count", "file": "source/types/hooks.ts", "line": 37, "from": "The number of retries attempted.", "to": "The retry count."},
 		{"concept": "retry-count", "file": "source/types/hooks.ts", "line": 50, "from": "The number of retries attempted.", "to": "The retry count."},

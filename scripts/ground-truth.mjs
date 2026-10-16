@@ -124,7 +124,7 @@ for (const concept of concepts) {
 		}
 	}
 
-	// Cohen's kappa for two taggers summarizes the agreement; with more, the share of agreeing rows.
+	// The script reports agreement as Cohen's kappa for two taggers; with more, as the share of agreeing rows.
 	const total = both + neither + split;
 	const observed = (both + neither) / total;
 	let kappa = null;

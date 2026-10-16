@@ -1,6 +1,6 @@
 // Builds the proposed codebase from the published codebase using config/proposed-edits.json:
 //   nameEdits: name edits through the type checker, so every reference changes and nothing else does;
-//   comments: exact wording replacements on one line each.
+//   wordingEdits: exact wording replacements on one line each.
 // Then checks that every file keeps its line count (so ground-truth lines map 1:1) and that type checks and the
 // codebase verification suite give the same results as the published codebase.
 // Usage: node build-proposed.mjs
@@ -50,7 +50,7 @@ for (const nameEdit of edits.nameEdits) {
 	log.push(`name edit ${nameEdit.name} -> ${nameEdit.newName}: ${locations.length} locations in ${[...byFile.keys()].map(file => relative(target, file)).join(', ')}`);
 }
 
-for (const edit of edits.comments) {
+for (const edit of edits.wordingEdits) {
 	const absolute = path.join(target, edit.file);
 	const lines = texts.get(absolute).split('\n');
 	const line = lines[edit.line - 1];
@@ -63,7 +63,7 @@ for (const edit of edits.comments) {
 	texts.set(absolute, lines.join('\n'));
 }
 
-log.push(`wording edits: ${edits.comments.length}`);
+log.push(`wording edits: ${edits.wordingEdits.length}`);
 
 // Every file keeps its line count, or nothing is written: the ground truth maps lines 1:1.
 for (const [file, text] of texts) {

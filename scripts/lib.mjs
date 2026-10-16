@@ -24,7 +24,6 @@ export const writeJson = (file, data) => {
 	fs.writeFileSync(file, JSON.stringify(data, null, '\t') + '\n');
 };
 
-// The concept configuration holds the list of concepts.
 export const loadConcepts = () => readJson(path.join(projectRoot, 'config', 'concepts.json'));
 export const loadTasks = () => readJson(path.join(projectRoot, 'config', 'tasks.json'));
 

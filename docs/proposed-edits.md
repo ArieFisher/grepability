@@ -7,9 +7,7 @@ The proposed codebase build (`scripts/build-proposed.mjs`) applies the edit list
 | Kind | Where in the list | Fields | What the build does |
 |---|---|---|---|
 | name edit | `nameEdits` | `concept`, `file`, `line`, `name`, `nth` (optional), `newName` | Reads every location of the name from the type checker and replaces each one, so every reference changes and nothing else does. `nth` picks a later occurrence of the name on the line. |
-| wording edit | `comments` | `concept`, `file`, `line`, `from`, `to` | Replaces the exact text `from` with `to` on one line of a comment or string. The text `from` must occur exactly once on that line. |
-
-The `comments` array holds the wording edits. Its name predates the vocabulary term.
+| wording edit | `wordingEdits` | `concept`, `file`, `line`, `from`, `to` | Replaces the exact text `from` with `to` on one line of a comment or string. The text `from` must occur exactly once on that line. |
 
 ## Rules every edit follows
 
