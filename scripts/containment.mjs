@@ -24,8 +24,8 @@ export const agentEnv = (env, tmpDir) => ({...containedEnv(env, tmpDir), CLAUDE_
 //   back to unsandboxed commands.
 // - With allowUnsandboxedCommands: false, Claude Code gives a blocked command no retry outside the sandbox.
 // - With autoAllowBashIfSandboxed: false, Claude Code runs only the commands the allowedTools list matches.
-// - allowWrite adds the run's temporary folder, which holds TMPDIR and the npm cache.
-// - reads holds denyRead and allowRead (see readLimits in agent-runner.mjs). The sandbox lets a command
+// - allowWrite lists the run's temporary folder, which holds TMPDIR and the npm cache.
+// - denyRead and allowRead come from reads (see readLimits in agent-runner.mjs). The sandbox lets a command
 //   read most of the machine by default; where the two lists overlap, the sandbox applies the narrower path.
 // - With allowLocalBinding, the sandbox lets the codebase's tests start and reach local servers. It
 //   blocks every other host.

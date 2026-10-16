@@ -2,6 +2,7 @@
 // that keep agent runs and script commands inside the project folder. Run: node --test scripts/
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, readLimits, slotDir} from './agent-runner.mjs';
@@ -35,9 +36,9 @@ test('agentSettings turns the sandbox on with no unsandboxed fallback and no aut
 	assert.equal(sandbox.excludedCommands, undefined);
 });
 
-test('readLimits denies reads of the project and allows the run copy, the temporary folder, and the shared dependencies', () => {
+test('readLimits denies reads of the home folder and the project and allows the run copy, the temporary folder, and the shared dependencies', () => {
 	assert.deepEqual(readLimits('/slot/ky', '/run/tmp'), {
-		denyRead: [projectRoot],
+		denyRead: [os.homedir(), projectRoot],
 		allowRead: ['/slot/ky', '/run/tmp', path.join(workDir, 'deps')],
 	});
 });

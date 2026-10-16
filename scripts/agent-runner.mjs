@@ -2,6 +2,7 @@
 // containment.mjs describes. run-agents.mjs and check-fence.mjs both start agents through here.
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {agentArgs, agentEnv} from './containment.mjs';
 import {loadCodebase, loadTasks, makeRunCopy, projectRoot, versionDir, workDir} from './lib.mjs';
@@ -43,11 +44,13 @@ export const copyIntoSlot = (slot, version) => {
 	return makeRunCopy(versionDir(version), path.join(slotDir(slot), copyName()));
 };
 
-// The sandbox read lists for one run. A shell command may read nothing in the project except the run
-// copy, the run's temporary folder, and the shared dependencies that the run copy's node_modules links
-// to, so it cannot read the hidden tests, the other version, or the key.
+// The sandbox read lists for one run. A shell command may read nothing in the home folder or the project
+// except the run copy, the run's temporary folder, and the shared dependencies that the run copy's
+// node_modules links to. It cannot read the hidden tests, the other version, the key, or the secrets and
+// settings in the home folder, which could otherwise reach a transcript or a diff. The project is listed
+// on its own because it may lie outside the home folder.
 export const readLimits = (directory, tmpDir) => ({
-	denyRead: [projectRoot],
+	denyRead: [os.homedir(), projectRoot],
 	allowRead: [directory, tmpDir, path.join(workDir, 'deps')],
 });
 
