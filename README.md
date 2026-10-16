@@ -66,7 +66,7 @@ At least that’s the narrative.  But can we test it?  Can we go further and mea
      - **Interpretation**: A high score means that the concepts’ terms are **distinguished**. So a concept that was represented by a broad term (such as “rate") that matches every line of the concept - along with hundreds of unrelated lines - would hurt the ‘grepability’ of this code base.\
        A low score indicates the need to refactor by choosing concept names that are more distinguishing.
 
-4. **Measure (`search score`)**: the grepability of the two versions of that codebases (the published Ky as it is right now, and, the copy of it that where concept names have been harmonized).
+4. **Measure (`search score`)**: the grepability of the two versions of that codebase (the published Ky as it is right now, and, the copy of it where concept names have been harmonized).
 
 5. **Test** if the *same prompts* are *more effective* on a grepable codebase (`agentic effectiveness score`)
 
