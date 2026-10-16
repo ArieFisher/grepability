@@ -42,14 +42,14 @@ const header = [
 	'Search score change',
 	...versions.map(version => `Agent score ${version}`),
 	'Agent score change',
-	...versions.map(version => `Find rate ${version}`),
-	...versions.map(version => `Term distinctiveness ${version}`),
+	...versions.map(version => `Recall ${version}`),
+	...versions.map(version => `Precision ${version}`),
 ];
 const conceptLine = row => [
 	row.name,
 	...scoreCells(row),
-	...versions.map(version => percent(row.byVersion[version].findRate)),
-	...versions.map(version => percent(row.byVersion[version].termDistinctiveness)),
+	...versions.map(version => percent(row.byVersion[version].recall)),
+	...versions.map(version => percent(row.byVersion[version].precision)),
 ];
 const overallLine = ['**Overall**', ...scoreCells(table.overall), ...versions.flatMap(() => ['', ''])];
 const notes = [

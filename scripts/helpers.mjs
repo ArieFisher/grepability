@@ -540,7 +540,7 @@ export const agentSummaryRow = (task, version, runs, pCell) => {
 		score ? `${percent(score.interval.low)} to ${percent(score.interval.high)}` : 'n/a',
 		pCell,
 		`${flagged}/${answered.length}`,
-		format(mean(runs.map(run => run.findRate))),
+		format(mean(runs.map(run => run.recall))),
 		format(mean(runs.map(run => run.missed)), 1),
 		format(median(runs.map(run => run.wallSeconds)), 0),
 		format(mean(runs.map(run => run.costUsd))),
@@ -591,14 +591,14 @@ export const median = values => {
 };
 
 // Score of a find reply: the share of the ground truth's lines it lists, the lines missed, and whether none
-// is missed. Extra lines in the reply do not matter. A concept with no truth line has no find rate, so it throws.
+// is missed. Extra lines in the reply do not matter. A concept with no truth line has no recall, so it throws.
 export const findScore = (listed, expected) => {
 	if (expected.size === 0) {
-		throw new Error('The ground truth lists no line for the concept, so a find rate is undefined.');
+		throw new Error('The ground truth lists no line for the concept, so its recall is undefined.');
 	}
 
 	const missed = [...expected].filter(item => !listed.has(item)).length;
-	return {findRate: (expected.size - missed) / expected.size, missed, success: missed === 0};
+	return {recall: (expected.size - missed) / expected.size, missed, success: missed === 0};
 };
 
 // The locked lines of each concept, as a map from concept id to a set of file:line keys. Each concept in the
@@ -631,18 +631,18 @@ export const readLockedLines = (concepts, readLine) => new Map(concepts.map(conc
 }));
 
 // The two parts of the search score for one concept in one version. searchRates removes the concept's locked
-// lines from the ground truth lines (the find rate denominator), the hits (the term distinctiveness
-// denominator), and the misses. A part with nothing to divide by is null.
+// lines from the ground truth lines (the recall denominator), the hits (the precision denominator), and the
+// misses. A part with nothing to divide by is null.
 export const searchRates = (expected, hits, locked) => {
 	const truthLines = [...expected].filter(line => !locked.has(line));
 	const scoredHits = new Set([...hits].filter(hit => !locked.has(hit)));
-	const found = truthLines.filter(line => scoredHits.has(line)).length;
+	const truePositives = truthLines.filter(line => scoredHits.has(line)).length;
 	return {
-		found,
+		truePositives,
 		truthLines: truthLines.length,
 		hits: scoredHits.size,
-		findRate: truthLines.length === 0 ? null : found / truthLines.length,
-		termDistinctiveness: scoredHits.size === 0 ? null : found / scoredHits.size,
+		recall: truthLines.length === 0 ? null : truePositives / truthLines.length,
+		precision: scoredHits.size === 0 ? null : truePositives / scoredHits.size,
 		missed: truthLines.filter(line => !scoredHits.has(line)),
 	};
 };

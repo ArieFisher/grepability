@@ -14,7 +14,7 @@ const tasks = [
 	{id: 'edit', concept: 'count'},
 	{id: 'jitter-find', concept: 'jitter'},
 ];
-const searchRow = (version, concept, findRate, termDistinctiveness) => ({version, concept, findRate, termDistinctiveness});
+const searchRow = (version, concept, recall, precision) => ({version, concept, recall, precision});
 const searchResults = [
 	searchRow('published', 'count', 0.5, 1),
 	searchRow('published', 'delay', 0.5, 0.5),
@@ -34,7 +34,7 @@ const agentRuns = [
 ];
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} is not ${expected}`);
 
-test('searchScore is the harmonic mean of find rate and term distinctiveness', () => {
+test('searchScore is the harmonic mean of recall and precision', () => {
 	close(searchScore(0.5, 1), 2 / 3);
 	assert.equal(searchScore(1, 1), 1);
 	assert.equal(searchScore(0, 0), 0);
@@ -42,12 +42,12 @@ test('searchScore is the harmonic mean of find rate and term distinctiveness', (
 	assert.equal(searchScore(1, null), null);
 });
 
-test('searchScore of a search with no hits is 0, because its find rate is 0', () => {
+test('searchScore of a search with no hits is 0, because its recall is 0', () => {
 	assert.equal(searchScore(0, null), 0);
 });
 
 test('resultsTable overall search score is null when a measured concept has no search score in a version', () => {
-	const noTruth = searchResults.map(row => row.version === 'proposed' && row.concept === 'delay' ? {...row, findRate: null} : row);
+	const noTruth = searchResults.map(row => row.version === 'proposed' && row.concept === 'delay' ? {...row, recall: null} : row);
 	const table = resultsTable({concepts, tasks, searchResults: noTruth, agentRuns, versionNames});
 	assert.equal(table.overall.byVersion.proposed.searchScore, null);
 	assert.equal(table.overall.change.searchScore, null);
