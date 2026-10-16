@@ -6,30 +6,30 @@ The proposed codebase build (`scripts/build-proposed.mjs`) applies the edit list
 
 | Kind | Where in the list | Fields | What the build does |
 |---|---|---|---|
-| rename | `renames` | `concept`, `file`, `line`, `name`, `nth` (optional), `newName` | Reads every location of the name from the type checker and replaces each one, so every reference changes and nothing else does. `nth` picks a later occurrence of the name on the line. |
+| name edit | `nameEdits` | `concept`, `file`, `line`, `name`, `nth` (optional), `newName` | Reads every location of the name from the type checker and replaces each one, so every reference changes and nothing else does. `nth` picks a later occurrence of the name on the line. |
 | wording edit | `comments` | `concept`, `file`, `line`, `from`, `to` | Replaces the exact text `from` with `to` on one line of a comment or string. The text `from` must occur exactly once on that line. |
 
 The `comments` array holds the wording edits. Its name predates the vocabulary term.
 
 ## Rules every edit follows
 
-1. **Each edit belongs to one concept.** The edit records the concept in `concept`. The build applies each edit to put that concept's search term on a ground truth line, or to take the search term off a line outside the ground truth.
+1. **Each edit belongs to one concept.** The edit records the concept in `concept`. The build applies each edit to put that concept's proposed search pattern on a ground truth line, or to take the proposed search pattern off a line outside the ground truth.
 2. **Line numbers stay the same.** No edit adds or removes a line, so every ground truth line maps to the same line in the proposed codebase. The build stops when a file's line count changes.
-3. **Behavior stays the same.** Public option names, platform names, and error message strings stay as they are. The build compiles the proposed codebase from its own source, then requires the same type check result and the same result for every test as the published codebase. A test that both passes and fails across reruns in both versions counts as flaky and is ignored.
+3. **Behavior stays the same.** Public option names, platform names, and error message strings stay as they are. The build compiles the proposed codebase from its own source, then requires the same type check result and the same result for every individual codebase verification as the published codebase. The build ignores a flaky verification: one that both passes and fails across individual codebase verification re-executions in both codebase versions.
 4. **No edit applies to the control concept.** Its wording is already consistent, so its scores show the values that hold when nothing needs fixing.
 
 ## Where the edits come from
 
 The worklist has two parts, and the search-score script leaves locked lines out of both.
 
-- **Misses.** The search-score script writes the lines each search missed. A name line miss is a candidate for a rename. A text line miss is a candidate for a wording edit.
-- **Hits outside the ground truth.** A name on such a line is a candidate for a rename that drops the search term. A comment or string on such a line is a candidate for a wording edit that drops it.
+- **Misses.** The search-score script writes the lines each pattern search missed. A name line miss is a candidate for a name edit. A text line miss is a candidate for a wording edit.
+- **Hits outside the ground truth.** A name on such a line is a candidate for a name edit that drops the proposed search pattern. A comment or string on such a line is a candidate for a wording edit that drops it.
 
-A line that no edit can reach within the rules above is a locked line, as the vocabulary defines it, and goes on the concept's `lockedLines` list in `config/concepts.json` with its reason. The proposed codebase scores 100% recall and 100% precision on every concept. A name that a rename gives the concept's search term belongs in the concept's seeds; whoever adds the seed reruns `node scripts/ground-truth.mjs`.
+A line that no edit can reach within the rules above is a locked line, as the vocabulary defines it, and goes on the concept's `lockedLines` list in `config/concepts.json` with its reason. The proposed codebase scores 100% recall and 100% precision on every concept. A name that a name edit gives the concept's proposed search pattern belongs in the concept's seeds; whoever adds the seed runs `node scripts/ground-truth.mjs` again.
 
 ## Changing the list
 
 1. Edit `config/proposed-edits.json`.
-2. Run `node scripts/build-proposed.mjs`. It applies the edits, checks the line counts, compiles the proposed codebase, and compares type check and test results with the published codebase.
-3. Run `node scripts/search-score.mjs`. It writes the recall and precision of both versions and the remaining misses. When a concept in the proposed codebase scores below 100% on either part, return to step 1.
+2. Run `node scripts/build-proposed.mjs`. It applies the edits, checks the line counts, compiles the proposed codebase, and compares its type check and codebase verification suite results with the published codebase.
+3. Run `node scripts/search-score.mjs`. It writes the recall and precision of both codebase versions and the remaining misses. When a concept in the proposed codebase scores below 100% on either part, return to step 1.
 4. Commit the list and any regenerated results together.
