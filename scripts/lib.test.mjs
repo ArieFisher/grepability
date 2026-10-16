@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readLockedLines, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, isNameLine, truthLines, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readLockedLines, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadCodebase, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -466,6 +466,14 @@ test('findScore reports the recall, the lines missed, and success when none is m
 
 test('findScore throws when the ground truth lists no line for the concept', () => {
 	assert.throws(() => findScore(new Set(['a:1']), new Set()), /no line/);
+});
+
+test('truthLines returns the sorted line keys of one concept and isNameLine tells a name line from a text line', () => {
+	const entry = {names: ['a.ts:2', 'b.ts:1'], text: ['a.ts:5'], all: ['a.ts:2', 'a.ts:5', 'b.ts:1']};
+	assert.deepEqual(truthLines(entry), ['a.ts:2', 'a.ts:5', 'b.ts:1']);
+	assert.equal(isNameLine(entry, 'a.ts:2'), true);
+	assert.equal(isNameLine(entry, 'a.ts:5'), false);
+	assert.equal(isNameLine(entry, 'c.ts:9'), false);
 });
 
 test('matchesForms tests the text of a line and never the text of a missing line', () => {

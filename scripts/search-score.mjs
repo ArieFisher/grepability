@@ -6,7 +6,7 @@
 // Usage: node search-score.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {key, loadCodebase, loadConcepts, percent, projectRoot, readJson, readLockedLines, runChecked, searchRates, splitKey, toCsv, truthStatement, versionDir, versions, writeJson} from './lib.mjs';
+import {isNameLine, key, loadCodebase, loadConcepts, percent, projectRoot, readJson, readLockedLines, runChecked, searchRates, splitKey, toCsv, truthLines, truthStatement, versionDir, versions, writeJson} from './lib.mjs';
 
 const {concepts} = loadConcepts();
 const {corpus} = loadCodebase();
@@ -51,7 +51,7 @@ for (const version of present) {
 	const misses = [];
 	missesByVersion.set(version, misses);
 	for (const concept of concepts) {
-		const expected = new Set(truth.concepts[concept.id].all);
+		const expected = new Set(truthLines(truth.concepts[concept.id]));
 		const {missed, ...rates} = searchRates(expected, search(root, concept.search), lockedByConcept.get(concept.id));
 		results.push({
 			version,
@@ -62,7 +62,7 @@ for (const version of present) {
 		});
 		for (const line of missed) {
 			const {file, line: number} = splitKey(line);
-			misses.push([concept.id, file, number, truth.concepts[concept.id].names.includes(line) ? 'name' : 'text', lineText(root, file, number)]);
+			misses.push([concept.id, file, number, isNameLine(truth.concepts[concept.id], line) ? 'name' : 'text', lineText(root, file, number)]);
 		}
 	}
 }

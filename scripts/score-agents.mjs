@@ -10,7 +10,7 @@
 // Usage: node score-agents.mjs [--skip-tests]
 import fs from 'node:fs';
 import path from 'node:path';
-import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, editSuccess, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedTitles, rerunTest, runChecked, runMeasures, splitKey, toCsv, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, editSuccess, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, isNameLine, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedTitles, rerunTest, runChecked, runMeasures, splitKey, toCsv, truthLines, versionDir, versions, workDir, writeJson} from './lib.mjs';
 
 const skipTests = process.argv.includes('--skip-tests');
 const config = loadTasks();
@@ -32,7 +32,7 @@ if (fs.existsSync(path.join(publishedRoot, loadCodebase().corpus.directory))) {
 	}
 } else {
 	for (const entry of Object.values(truth.concepts)) {
-		for (const line of entry.all) {
+		for (const line of truthLines(entry)) {
 			const {file, line: number} = splitKey(line);
 			knownFiles.set(file, Math.max(knownFiles.get(file) ?? 0, number));
 		}
@@ -62,7 +62,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 	const run = readJson(path.join(runDir, 'run.json'));
 	const task = config.tasks.find(item => item.id === taskId);
 	const concept = concepts.find(item => item.id === task.concept);
-	const expected = new Set(truth.concepts[task.concept].all);
+	const expected = new Set(truthLines(truth.concepts[task.concept]));
 	const diff = fs.readFileSync(path.join(runDir, 'diff.patch'), 'utf8');
 	const row = {
 		runId,
@@ -85,7 +85,7 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		}
 
 		const targets = new Set(task.requiredLines ?? [...expected].filter(item => {
-			if (truth.concepts[task.concept].names.includes(item)) {
+			if (isNameLine(truth.concepts[task.concept], item)) {
 				return true;
 			}
 

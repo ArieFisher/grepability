@@ -590,6 +590,12 @@ export const median = values => {
 	return numbers.length % 2 === 1 ? numbers[middle] : (numbers[middle - 1] + numbers[middle]) / 2;
 };
 
+// The ground truth entry of one concept, read through these two accessors so that no script depends on
+// how the entry stores its lines. truthLines gives the sorted line keys; isNameLine tells a name line from
+// a text line.
+export const truthLines = entry => entry.all;
+export const isNameLine = (entry, lineKey) => entry.names.includes(lineKey);
+
 // Score of a find reply: the share of the ground truth's lines it lists, the lines missed, and whether none
 // is missed. Extra lines in the reply do not matter. A concept with no truth line has no recall, so it throws.
 export const findScore = (listed, expected) => {
