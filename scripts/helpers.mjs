@@ -16,6 +16,20 @@ export const option = (argv, name, fallback) => {
 	return index === -1 ? fallback : argv[index + 1];
 };
 
+// Stops a script on an argument it does not take: a flag outside valueFlags and switchFlags, or a word
+// that follows no value flag. Without it, a mistyped or retired flag drops out and the script falls back
+// to its defaults, which for the agent task run scripts means starting every default agent task run.
+export const checkFlags = (argv, valueFlags, switchFlags = []) => {
+	for (let index = 0; index < argv.length; index++) {
+		const name = argv[index].replace(/^--/, '');
+		if (valueFlags.includes(name) && argv[index].startsWith('--')) {
+			index++;
+		} else if (!switchFlags.includes(name) || !argv[index].startsWith('--')) {
+			throw new Error(`Unknown argument ${argv[index]}. This script takes ${[...valueFlags, ...switchFlags].map(flag => `--${flag}`).join(', ') || 'no arguments'}.`);
+		}
+	}
+};
+
 // A whole number option of at least `minimum`. Text, fractions, and small values stop the script,
 // because Number() turns them into NaN or a value that makes a loop run nothing or run forever.
 export const integerOption = (argv, name, fallback, minimum) => {
@@ -584,9 +598,9 @@ export const lineKindRows = (task, codebaseVersion, agentTaskRuns, kinds, taskKi
 	});
 
 // One row of the agent summary table, for the agent task runs of one task in one codebase version; pCell is the
-// text of the Fisher comparison (p) column. The agent task runs column counts every agent task run, as the
-// averaged columns do. The success count and its interval cover the agent task runs with known success, and show
-// n/a when every agent task run has unknown success.
+// text of the Fisher comparison (p) column. agentSummaryRow counts every agent task run in the agent task runs
+// column and the averaged columns. It counts successes and their interval over the agent task runs with known
+// success only, and writes n/a when every agent task run has unknown success.
 export const agentSummaryRow = (task, codebaseVersion, agentTaskRuns, pCell) => {
 	const score = successScore(agentTaskRuns);
 	const answered = agentTaskRuns.filter(agentTaskRun => agentTaskRun.wrongEdits !== null);

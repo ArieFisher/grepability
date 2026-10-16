@@ -8,8 +8,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {buildCloudAgentTaskRunRepository, loadCloud, loadRoutines} from './cloud.mjs';
-import {codebaseVersionDir, codebaseVersions, runChecked, workDir} from './lib.mjs';
+import {checkFlags, codebaseVersionDir, codebaseVersions, runChecked, workDir} from './lib.mjs';
 
+checkFlags(process.argv.slice(2), [], ['push']);
 const push = process.argv.includes('--push');
 const cloud = loadCloud();
 const {repositories} = loadRoutines([]);

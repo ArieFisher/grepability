@@ -8,9 +8,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {agentTaskRunCopyName, checkAgentTaskRunSlotsEmpty, copyIntoAgentTaskRunSlot, loadAgent, runAgent} from './agent-runner.mjs';
-import {codebaseVersions, diffSinceSnapshot, integerOption, interleave, loadTasks, missingAgentTaskRuns, option, readJson, summarizeTranscript, workDir, writeJson} from './lib.mjs';
+import {checkFlags, codebaseVersions, diffSinceSnapshot, integerOption, interleave, loadTasks, missingAgentTaskRuns, option, readJson, summarizeTranscript, workDir, writeJson} from './lib.mjs';
 
 const argv = process.argv.slice(2);
+checkFlags(argv, ['agent-task-runs', 'tasks', 'codebase-versions', 'parallel', 'model']);
 const config = loadTasks();
 const agent = loadAgent();
 const agentTaskRunsPerCell = integerOption(argv, 'agent-task-runs', 10, 1);

@@ -12,8 +12,9 @@
 // Usage: node score-agents.mjs [--skip-verification-suite]
 import fs from 'node:fs';
 import path from 'node:path';
-import {agentTaskRunMeasures, blindEditsReviewSheetColumns, blindEditsReviewSheetRows, changedOriginalLines, codebaseVersionDir, codebaseVersions, corpusFiles, editRegressionCandidates, editSuccess, findScore, fromCsv, inCorpus, isNameLine, isWithheldAcceptanceTest, judgeLostVerificationTitles, kindTally, listedLines, loadCodebase, loadConcepts, loadTasks, matchesPublishedSearchPattern, projectRoot, publishedCodebaseVersion, readJson, reexecuteVerification, renamedVerificationTitles, runChecked, splitKey, toCsv, truthLines, withheldAcceptanceTestPath, workDir, writeJson} from './lib.mjs';
+import {agentTaskRunMeasures, checkFlags, blindEditsReviewSheetColumns, blindEditsReviewSheetRows, changedOriginalLines, codebaseVersionDir, codebaseVersions, corpusFiles, editRegressionCandidates, editSuccess, findScore, fromCsv, inCorpus, isNameLine, isWithheldAcceptanceTest, judgeLostVerificationTitles, kindTally, listedLines, loadCodebase, loadConcepts, loadTasks, matchesPublishedSearchPattern, projectRoot, publishedCodebaseVersion, readJson, reexecuteVerification, renamedVerificationTitles, runChecked, splitKey, toCsv, truthLines, withheldAcceptanceTestPath, workDir, writeJson} from './lib.mjs';
 
+checkFlags(process.argv.slice(2), [], ['skip-verification-suite']);
 const skipVerificationSuite = process.argv.includes('--skip-verification-suite');
 const config = loadTasks();
 const {concepts} = loadConcepts();

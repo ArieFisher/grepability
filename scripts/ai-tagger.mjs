@@ -7,9 +7,10 @@
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {acceptTags, codebaseVersionDir, fromCsv, integerOption, loadConcepts, loadTasks, option, projectRoot, publishedCodebaseVersion, toCsv} from './lib.mjs';
+import {acceptTags, checkFlags, codebaseVersionDir, fromCsv, integerOption, loadConcepts, loadTasks, option, projectRoot, publishedCodebaseVersion, toCsv} from './lib.mjs';
 
 const argv = process.argv.slice(2);
+checkFlags(argv, ['model', 'chunk', 'parallel', 'context']);
 const name = argv[0];
 if (!name || name.startsWith('--')) {
 	throw new Error('Usage: node ai-tagger.mjs <tagger-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]');

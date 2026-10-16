@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {agentSummaryRow, blindEditsReviewSheetRows, changedOriginalLines, editSuccess, findScore, isNameLine, kindTally, lineKindCells, lineKindOf, lineKindRows, readLineKinds, truthLines, fisherComparison, fromCsv, interleave, key, listedLines, matchesPublishedSearchPattern, mean, median, missingAgentTaskRuns, option, percent, readAdjudication, judgeLostVerificationTitles, lostReexecutionLimit, readLockedLines, readWrongEdits, editRegressionCandidates, renamedVerificationTitles, agentTaskRunMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {agentSummaryRow, blindEditsReviewSheetRows, changedOriginalLines, checkFlags, editSuccess, findScore, isNameLine, kindTally, lineKindCells, lineKindOf, lineKindRows, readLineKinds, truthLines, fisherComparison, fromCsv, interleave, key, listedLines, matchesPublishedSearchPattern, mean, median, missingAgentTaskRuns, option, percent, readAdjudication, judgeLostVerificationTitles, lostReexecutionLimit, readLockedLines, readWrongEdits, editRegressionCandidates, renamedVerificationTitles, agentTaskRunMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, withheldAcceptanceTestPath, isWithheldAcceptanceTest, loadCodebase, loadTasks, makeAgentTaskRunCopy, proposedCodebaseVersion, publishedCodebaseVersion, codebaseVersions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -65,6 +65,14 @@ test('option reads the value after a flag and falls back when the flag is absent
 	assert.equal(option(argv, 'chunk', 120), '60');
 	assert.equal(option(argv, 'model', 'opus'), 'sonnet');
 	assert.equal(option(argv, 'parallel', 4), 4);
+});
+
+test('checkFlags accepts known flags and their values and throws on an unknown or retired flag', () => {
+	assert.doesNotThrow(() => checkFlags(['--tasks', 'rename', '--push'], ['tasks'], ['push']));
+	assert.doesNotThrow(() => checkFlags([], ['tasks']));
+	assert.throws(() => checkFlags(['--runs', '1'], ['agent-task-runs']), /--runs/);
+	assert.throws(() => checkFlags(['--skip-tests'], [], ['skip-verification-suite']), /--skip-tests/);
+	assert.throws(() => checkFlags(['--tasks', 'rename', 'extra'], ['tasks']), /extra/);
 });
 
 test('percent rounds a share to a whole percent and shows n/a for no value', () => {
