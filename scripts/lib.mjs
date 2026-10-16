@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
+import {containedEnv} from './containment.mjs';
 import {parseTap} from './helpers.mjs';
 
 export * from './helpers.mjs';
@@ -98,11 +99,15 @@ export const corpusFiles = root => {
 // Whether a repo-relative file:line key or path lies in the corpus.
 export const inCorpus = fileOrKey => fileOrKey.startsWith(`${loadCodebase().corpus.directory}/`);
 
+// The temporary folder and npm cache of every command runChecked starts, inside the project (see containment.mjs).
+export const commandTmpDir = path.join(workDir, 'tmp');
+
 // Runs a command and returns its result. A command that cannot start (missing program, no
 // permission, output past the cap) throws, because a null exit status reads as "no output" otherwise.
 // A command that runs and exits non-zero returns normally; the caller reads `status`.
 export const runChecked = (command, args, options = {}) => {
-	const result = spawnSync(command, args, {encoding: 'utf8', maxBuffer: maxOutputBytes, ...options});
+	fs.mkdirSync(commandTmpDir, {recursive: true});
+	const result = spawnSync(command, args, {encoding: 'utf8', maxBuffer: maxOutputBytes, env: containedEnv(process.env, commandTmpDir), ...options});
 	if (result.error || result.status === null) {
 		throw new Error(`${command} did not run to the end: ${result.error?.message ?? `signal ${result.signal}`}`);
 	}
