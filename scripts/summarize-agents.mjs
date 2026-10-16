@@ -37,7 +37,7 @@ const scored = scores.map(row => {
 	return {agentTaskRunId: row.agentTaskRunId, codebaseVersion: entry.codebaseVersion, ...row, wrongEdits: wrongEdits.get(row.agentTaskRunId)};
 });
 
-// A failing individual codebase verification in one agent task run may be a flaky timing verification; the table
+// A failing individual codebase verification in one agent task run may be a flaky verification that depends on timing; the table
 // lists the edit regressions of each agent task run for checking.
 writeJson(path.join(resultsDir, 'agent-task-runs.json'), scored);
 const columns = ['agentTaskRunId', 'codebaseVersion', 'task', 'success', 'recall', 'missed', 'targetLines', 'otherSourceLinesChanged', 'verificationSuiteExecuted', 'typecheck', 'editRegressions', 'withheldAcceptanceTestPassed', 'wallSeconds', 'costUsd', 'turns', 'agentSearchToolCalls', 'readCalls', 'agentError', 'wrongEdits', 'regressedVerifications', 'verificationFilesStoppedPartway', 'tools'];

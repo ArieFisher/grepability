@@ -259,7 +259,7 @@ const hunk = (file, lines) => {
 	return [`diff --git a/${file} b/${file}`, `--- a/${file}`, `+++ b/${file}`, `@@ -1,${count('-')} +1,${count('+')} @@`, ...lines].join('\n');
 };
 
-test('renamedVerificationTitles maps the new title of a renamed declaration to its old title', () => {
+test('renamedVerificationTitles maps the new verification title of a renamed verification declaration to its old verification title', () => {
 	const diff = hunk('test/retry.ts', ["-test('retryCount is 1', async t => {", "+test('retryNumber is 1', async t => {"]);
 	assert.deepEqual(renamedVerificationTitles(diff, verificationSuite), new Map([['retry › retryNumber is 1', 'retry › retryCount is 1']]));
 });
@@ -551,7 +551,7 @@ test('kindTally throws on a line with no line kind', () => {
 	assert.throws(() => kindTally(['a.ts:8'], new Set(), {}), /a\.ts:8/);
 });
 
-test('matchesPublishedSearchPattern tests the text of a line and never the text of a missing line', () => {
+test('matchesPublishedSearchPattern checks the text of a line and never the text of a missing line', () => {
 	const lines = ['const retry = 1;', 'other'];
 	assert.equal(matchesPublishedSearchPattern(lines, 1, 'retry'), true);
 	assert.equal(matchesPublishedSearchPattern(lines, 2, 'retry'), false);

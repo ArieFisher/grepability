@@ -17,12 +17,12 @@ if (!fs.existsSync(searchFile)) {
 	throw new Error(`Missing ${searchFile}: run scripts/search-score.mjs first.`);
 }
 
-const search = readJson(searchFile);
+const searchScoreResults = readJson(searchFile);
 const agentTaskRuns = fs.existsSync(agentFile) ? readJson(agentFile) : [];
 const table = resultsTable({
 	concepts: loadConcepts().concepts,
 	tasks: loadTasks().tasks,
-	searchResults: search.results,
+	searchResults: searchScoreResults.results,
 	agentTaskRuns,
 	codebaseVersionNames: codebaseVersions,
 });
@@ -53,7 +53,7 @@ const conceptLine = row => [
 ];
 const overallLine = ['**Overall**', ...scoreCells(table.overall), ...codebaseVersions.flatMap(() => ['', ''])];
 const notes = [
-	truthStatement(search.truth),
+	truthStatement(searchScoreResults.truth),
 	...(agentTaskRuns.length === 0 ? ['No agent task runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.'] : []),
 	...(table.skippedAgentTaskRuns > 0 ? [`${table.skippedAgentTaskRuns} agent task runs of edit tasks were scored without the type check, the codebase verification suite, or the withheld acceptance test (--skip-verification-suite), and count as successes when they missed no line.`] : []),
 	...(table.unknownAgentTaskRuns > 0 ? [`${table.unknownAgentTaskRuns} agent task runs of edit tasks had a verification file that stopped partway during scoring, so their success is unknown. This script leaves them out of the agent scores; rescore them.`] : []),

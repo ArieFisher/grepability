@@ -133,14 +133,14 @@ export const renamedVerificationTitles = (diff, verificationSuite) => {
 };
 
 // Individual codebase verifications that may be edit regressions, matched by verification title within each
-// verification file (the title up to the first separator). `renamedVerifications` maps a renamed verification's new
-// title to its old title, so a renamed verification is judged by its own result. An individual codebase
-// verification that fails in the pre-edit codebase verification suite results never counts. reexecute: the agent
-// task run titles of individual codebase verifications that passed in the pre-edit codebase verification suite
-// results and fail in the agent task run; each needs an individual codebase verification re-execution to rule out a
-// flaky verification. files: each verification file with passing individual codebase verifications that the agent
-// task run's results lack, as lostVerificationTitles under their agent task run title, so a re-execution finds a
-// renamed verification under its new title.
+// verification file (the verification title up to the first separator). `renamedVerifications` maps a renamed
+// verification's new verification title to its old verification title, so a renamed verification is judged by its own
+// result. An individual codebase verification that fails in the pre-edit codebase verification suite results never
+// counts. reexecute: the agent task run titles of individual codebase verifications that passed in the pre-edit
+// codebase verification suite results and fail in the agent task run; each needs an individual codebase verification
+// re-execution to rule out a flaky verification. files: each verification file with passing individual codebase
+// verifications that the agent task run's results lack, as lostVerificationTitles under their agent task run title,
+// so a re-execution finds a renamed verification under its new verification title.
 export const editRegressionCandidates = (preEditResults, agentTaskRunResults, renamedVerifications, separator) => {
 	const fileOf = title => title.split(separator)[0];
 	const newVerificationTitles = new Map([...renamedVerifications].map(([newTitle, oldTitle]) => [oldTitle, newTitle]));

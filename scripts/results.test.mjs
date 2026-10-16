@@ -101,7 +101,7 @@ test('resultsTable with no agent task runs gives every agent score as null', () 
 	assert.equal(table.overall.byCodebaseVersion.published.agent, null);
 });
 
-test('resultsTable throws when a concept has no search result in a codebase version', () => {
+test('resultsTable throws when the search score holds no result for a concept in a codebase version', () => {
 	assert.throws(() => resultsTable({concepts, tasks, searchResults: searchResults.slice(1), agentTaskRuns, codebaseVersionNames}), /count.*published/);
 });
 

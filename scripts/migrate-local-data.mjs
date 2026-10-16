@@ -1,4 +1,4 @@
-// One-off migration of the local, untracked files the scripts read, from the names before the vocabulary rename to
+// One-off migration of the local, untracked files the scripts read, from the names before the vocabulary change to
 // the names after it: file and folder names, JSON fields, one CSV column, and the agent task run folder paths that
 // run.json, the verification suite result files, and the blind edits-review sheet hold. Each clone runs it once,
 // from the commit that adds it, before any other script of that commit.
