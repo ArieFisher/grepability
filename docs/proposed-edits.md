@@ -25,11 +25,11 @@ The worklist has two parts, and the search-score script leaves locked lines out 
 - **Misses.** The search-score script writes the lines each search missed. A name line miss is a candidate for a rename. A text line miss is a candidate for a wording edit.
 - **Hits outside the ground truth.** A name on such a line is a candidate for a rename that drops the search term. A comment or string on such a line is a candidate for a wording edit that drops it.
 
-A line that no edit can reach within the rules above is a locked line, as the vocabulary defines it, and goes on the concept's `lockedLines` list in `config/concepts.json` with its reason. The proposed codebase scores 100% find rate and 100% term distinctiveness on every concept. A name that a rename gives the concept's search term belongs in the concept's seeds; whoever adds the seed reruns `node scripts/ground-truth.mjs`.
+A line that no edit can reach within the rules above is a locked line, as the vocabulary defines it, and goes on the concept's `lockedLines` list in `config/concepts.json` with its reason. The proposed codebase scores 100% recall and 100% precision on every concept. A name that a rename gives the concept's search term belongs in the concept's seeds; whoever adds the seed reruns `node scripts/ground-truth.mjs`.
 
 ## Changing the list
 
 1. Edit `config/proposed-edits.json`.
 2. Run `node scripts/build-proposed.mjs`. It applies the edits, checks the line counts, compiles the proposed codebase, and compares type check and test results with the published codebase.
-3. Run `node scripts/search-score.mjs`. It writes the find rate and term distinctiveness of both versions and the remaining misses. When a concept in the proposed codebase scores below 100% on either part, return to step 1.
+3. Run `node scripts/search-score.mjs`. It writes the recall and precision of both versions and the remaining misses. When a concept in the proposed codebase scores below 100% on either part, return to step 1.
 4. Commit the list and any regenerated results together.
