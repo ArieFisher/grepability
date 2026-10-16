@@ -7,9 +7,15 @@
 		{"concept": "retry-delay", "file": "source/core/retry-timing.ts", "line": 32, "name": "rateLimitReset", "newName": "rateLimitResetDelay"},
 		{"concept": "retry-delay", "file": "source/core/retry-timing.ts", "line": 37, "name": "rateLimitRetryAfter", "newName": "rateLimitRetryAfterDelay"},
 		{"concept": "retry-delay", "file": "source/core/retry-timing.ts", "line": 42, "name": "rateLimitResetAlias", "newName": "rateLimitResetAliasDelay"},
+		{"concept": "retry-delay", "file": "source/utils/delay.ts", "line": 9, "name": "delay", "newName": "sleep"},
+		{"concept": "retry-delay", "file": "source/utils/delay.ts", "line": 5, "name": "DelayOptions", "newName": "SleepOptions"},
 		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1013, "name": "#createManagedSignal", "newName": "#createManagedAbortSignal"},
 		{"concept": "user-abort", "file": "source/utils/merge.ts", "line": 345, "name": "signals", "newName": "abortSignals"},
-		{"concept": "user-abort", "file": "source/utils/merge.ts", "line": 360, "name": "isRootSignal", "newName": "isRootAbortSignal"}
+		{"concept": "user-abort", "file": "source/utils/merge.ts", "line": 360, "name": "isRootSignal", "newName": "isRootAbortSignal"},
+		{"concept": "user-abort", "file": "source/utils/delay.ts", "line": 14, "name": "signal", "newName": "abortSignal"},
+		{"concept": "user-abort", "file": "source/core/constants.ts", "line": 33, "name": "supportsAbortController", "newName": "supportsSignalController"},
+		{"concept": "user-abort", "file": "source/core/constants.ts", "line": 34, "name": "supportsAbortSignal", "newName": "supportsSignalAny"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 439, "name": "#abortController", "newName": "#internalController"}
 	],
 	"comments": [
 		{"concept": "retry-count", "file": "source/types/retry.ts", "line": 16, "from": "The number of retries attempted.", "to": "The retry count."},
@@ -40,6 +46,9 @@
 		{"concept": "retry-delay", "file": "source/core/Ky.ts", "line": 1136, "from": "If waiting would consume", "to": "If the retry delay would consume"},
 		{"concept": "retry-delay", "file": "source/core/retry-timing.ts", "line": 31, "from": "Retry-After is authoritative when present", "to": "Retry-After is the authoritative delay when present"},
 		{"concept": "retry-delay", "file": "source/core/retry-timing.ts", "line": 43, "from": "// Twitter", "to": "// Twitter (also a delay header)"},
+		{"concept": "retry-delay", "file": "source/core/Ky.ts", "line": 211, "from": "not a usable delay either", "to": "not a usable timeout either"},
+		{"concept": "retry-delay", "file": "source/core/Ky.ts", "line": 591, "from": "// Delay the fetch", "to": "// Defer the fetch"},
+		{"concept": "retry-delay", "file": "source/utils/timeout.ts", "line": 34, "from": "never delay the rejection", "to": "never hold up the rejection"},
 		{"concept": "progress-callback", "file": "source/core/constants.ts", "line": 65, "from": "used to help estimate upload size", "to": "used to help estimate upload size for progress"},
 		{"concept": "progress-callback", "file": "source/utils/body.ts", "line": 35, "from": "This is an approximation,", "to": "This is an approximation for progress,"},
 		{"concept": "progress-callback", "file": "source/types/options.ts", "line": 28, "from": "The number of bytes transferred so far.", "to": "The progress so far, in bytes transferred."},
@@ -51,6 +60,11 @@
 		{"concept": "progress-callback", "file": "source/types/options.ts", "line": 327, "from": "so `totalBytes` falls back", "to": "so progress `totalBytes` falls back"},
 		{"concept": "progress-callback", "file": "source/types/options.ts", "line": 329, "from": "Do not throw from the callback.", "to": "Do not throw from the progress callback."},
 		{"concept": "progress-callback", "file": "source/types/options.ts", "line": 339, "from": "// `100%", "to": "// Progress: `100%"},
+		{"concept": "progress-callback", "file": "source/utils/body.ts", "line": 55, "from": "the documented total for an empty transfer", "to": "the documented progress total for an empty transfer"},
+		{"concept": "progress-callback", "file": "source/utils/body.ts", "line": 92, "from": "to 100% without reaching it", "to": "to 100% progress without reaching it"},
+		{"concept": "progress-callback", "file": "source/utils/body.ts", "line": 93, "from": "percent could potentially go backwards", "to": "progress percent could potentially go backwards"},
+		{"concept": "progress-callback", "file": "source/utils/body.ts", "line": 118, "from": "download-progress wrappers", "to": "wrapped download streams"},
+		{"concept": "progress-callback", "file": "source/utils/body.ts", "line": 230, "from": "for size calculation", "to": "for progress size calculation"},
 		{"concept": "user-abort", "file": "source/types/options.ts", "line": 302, "from": "to cancel instead", "to": "to abort instead"},
 		{"concept": "user-abort", "file": "source/types/options.ts", "line": 329, "from": "to cancel instead", "to": "to abort instead"},
 		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 419, "from": "A cancellation is part", "to": "An abort is part"},
@@ -59,6 +73,15 @@
 		{"concept": "user-abort", "file": "source/utils/merge.ts", "line": 483, "from": "before signal merging", "to": "before abort signal merging"},
 		{"concept": "user-abort", "file": "source/types/ky.ts", "line": 102, "from": "When extending an instance, signals are combined.", "to": "When extending an instance, abort signals are combined."},
 		{"concept": "user-abort", "file": "source/types/options.ts", "line": 507, "from": "When extending an instance, signals are combined.", "to": "When extending an instance, abort signals are combined."},
-		{"concept": "user-abort", "file": "source/types/options.ts", "line": 509, "from": "an absent signal", "to": "an absent abort signal"}
+		{"concept": "user-abort", "file": "source/types/options.ts", "line": 509, "from": "an absent signal", "to": "an absent abort signal"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 443, "from": "forwarding its signal", "to": "forwarding its abort signal"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 922, "from": "Aborting the request's", "to": "Triggering the request's"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1142, "from": "user-provided signal for delay, not our internal abortController", "to": "user-provided abort signal for delay, not our #internalController"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1147, "from": "Reset abortController if it was aborted", "to": "Reset #internalController if its signal fired"},
+		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 1224, "from": "the abort controller used by", "to": "the controller used by"},
+		{"concept": "user-abort", "file": "source/utils/merge.ts", "line": 484, "from": "the `supportsAbortSignal` check is removed", "to": "the `supportsSignalAny` check for abort signals is removed"},
+		{"concept": "user-abort", "file": "source/utils/timeout.ts", "line": 31, "from": "so it cannot abort a later retry attempt", "to": "so it cannot stop a later retry attempt"},
+		{"concept": "user-abort", "file": "source/types/ky.ts", "line": 128, "from": "makes Ky abort and return", "to": "makes Ky stop and return"},
+		{"concept": "user-abort", "file": "source/types/ky.ts", "line": 128, "from": "cause Ky to abort and then throw", "to": "cause Ky to stop and then throw"}
 	]
 }

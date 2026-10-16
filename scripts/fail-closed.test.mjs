@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {acceptTags, checkReviewers, integerOption, parseTap, summarizeTranscript} from './helpers.mjs';
+import {acceptTags, checkReviewers, integerOption, parseTap, readLockedLines, summarizeTranscript} from './helpers.mjs';
 import {checkInstallCommand, compileCodebase, createService, installCodebase, loadCodebase, rerunTest, runChecked} from './lib.mjs';
 
 test('the codebase configuration holds a compile command', () => {
@@ -130,6 +130,35 @@ test('checkReviewers rejects one reviewer, mismatched rows, and unknown concept 
 	assert.throws(() => checkReviewers(sheet, [full('one'), reviewer('two', [['a.ts:1']])], known), /two.*a\.ts:2/s);
 	assert.throws(() => checkReviewers(sheet, [full('one'), reviewer('two', [['a.ts:1'], ['a.ts:2'], ['a.ts:3']])], known), /two.*a\.ts:3/s);
 	assert.throws(() => checkReviewers(sheet, [full('one'), reviewer('two', [['a.ts:1', 'retry-cuont'], ['a.ts:2']])], known), /retry-cuont/);
+});
+
+const lockedFile = new Map([[1, 'signal.addEventListener(\'abort\', onAbort);'], [2, 'const delay = 5;']]);
+const readLockedFile = (file, line) => file === 'source/a.ts' ? lockedFile.get(line) : undefined;
+const lockedEntry = {file: 'source/a.ts', line: 1, text: '\'abort\'', reason: 'event name the program compares at runtime'};
+
+test('readLockedLines throws on a concept without a lockedLines array', () => {
+	assert.throws(() => readLockedLines([{id: 'user-abort'}], readLockedFile), /user-abort.*lockedLines/);
+	assert.throws(() => readLockedLines([{id: 'user-abort', lockedLine: []}], readLockedFile), /user-abort.*lockedLines/);
+	assert.throws(() => readLockedLines([{id: 'user-abort', lockedLines: {}}], readLockedFile), /user-abort.*lockedLines/);
+});
+
+test('readLockedLines throws on an entry missing its file, line, text, or reason', () => {
+	for (const field of ['file', 'line', 'text', 'reason']) {
+		const entry = {...lockedEntry, [field]: undefined};
+		assert.throws(() => readLockedLines([{id: 'user-abort', lockedLines: [entry]}], readLockedFile), new RegExp(`user-abort.*${field}`), field);
+	}
+
+	assert.throws(() => readLockedLines([{id: 'user-abort', lockedLines: [{...lockedEntry, line: 0}]}], readLockedFile), /user-abort.*line/);
+	assert.throws(() => readLockedLines([{id: 'user-abort', lockedLines: [{...lockedEntry, reason: ''}]}], readLockedFile), /user-abort.*reason/);
+});
+
+test('readLockedLines throws on an entry whose text is not on its line', () => {
+	const moved = {...lockedEntry, line: 2};
+	assert.throws(() => readLockedLines([{id: 'user-abort', lockedLines: [moved]}], readLockedFile), /user-abort.*source\/a\.ts:2.*'abort'/s);
+	const pastEnd = {...lockedEntry, line: 9};
+	assert.throws(() => readLockedLines([{id: 'user-abort', lockedLines: [pastEnd]}], readLockedFile), /source\/a\.ts:9/);
+	const otherFile = {...lockedEntry, file: 'source/b.ts'};
+	assert.throws(() => readLockedLines([{id: 'user-abort', lockedLines: [otherFile]}], readLockedFile), /source\/b\.ts:1/);
 });
 
 test('runChecked returns the result of a command that ran, whatever its exit status', () => {

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
+import {agentSummaryRow, blindSheetRows, changedOriginalLines, editSuccess, findScore, fisherExact, fromCsv, interleave, key, listedLines, matchesForms, mean, median, missingRuns, option, percent, readAdjudication, judgeLostTitles, lostRerunLimit, readLockedLines, readWrongEdits, regressionCandidates, renamedTitles, runMeasures, searchRates, shellCommandNames, shuffle, splitKey, successScore, summarizeTranscript, toCsv, truthStatement, usedAdjudicators, wilson} from './helpers.mjs';
 import {commentLinesOfText, copyCodebase, diffSinceSnapshot, hiddenTestPath, isHiddenTest, loadCodebase, loadTasks, makeRunCopy, proposedVersion, publishedVersion, versions, workDir} from './lib.mjs';
 
 const commentLineNumbers = source => commentLinesOfText('source/x.ts', source).map(row => row.line);
@@ -602,6 +602,35 @@ test('truthStatement states whether the ground truth is final and who adjudicate
 	assert.equal(truthStatement({provisional: true, unresolvedDisagreements: 2, adjudicators: ['arie', 'claude']}), 'Ground truth is provisional: 2 reviewer disagreements are unresolved. Adjudicators: arie, claude.');
 	assert.throws(() => truthStatement({provisional: false, unresolvedDisagreements: 0}), /adjudicators/);
 	assert.throws(() => truthStatement(undefined), /adjudicators/);
+});
+
+test('readLockedLines maps each concept to the line keys of its locked lines', () => {
+	const lines = new Map([['source/a.ts:3', '\tsignal.throwIfAborted();'], ['source/b.ts:7', 'const delay = 5;']]);
+	const concepts = [
+		{id: 'user-abort', lockedLines: [{file: 'source/a.ts', line: 3, text: 'throwIfAborted', reason: 'standard library name'}]},
+		{id: 'jitter', lockedLines: []},
+	];
+	const locked = readLockedLines(concepts, (file, line) => lines.get(key(file, line)));
+	assert.deepEqual([...locked], [['user-abort', new Set(['source/a.ts:3'])], ['jitter', new Set()]]);
+});
+
+test('searchRates scores found lines against the ground truth lines and the hits', () => {
+	const expected = new Set(['a.ts:1', 'a.ts:2', 'a.ts:3', 'a.ts:4']);
+	const hits = new Set(['a.ts:1', 'a.ts:2', 'a.ts:9']);
+	assert.deepEqual(searchRates(expected, hits, new Set()), {found: 2, truthLines: 4, hits: 3, findRate: 0.5, termDistinctiveness: 2 / 3, missed: ['a.ts:3', 'a.ts:4']});
+});
+
+test('searchRates leaves locked lines out of the ground truth lines, the hits, and the misses', () => {
+	const expected = new Set(['a.ts:1', 'a.ts:2', 'a.ts:3']);
+	const hits = new Set(['a.ts:1', 'a.ts:2', 'a.ts:9']);
+	const locked = new Set(['a.ts:3', 'a.ts:9']);
+	assert.deepEqual(searchRates(expected, hits, locked), {found: 2, truthLines: 2, hits: 2, findRate: 1, termDistinctiveness: 1, missed: []});
+});
+
+test('searchRates gives no ratio when locked lines leave nothing to divide by', () => {
+	const rates = searchRates(new Set(['a.ts:1']), new Set(['a.ts:1']), new Set(['a.ts:1']));
+	assert.equal(rates.findRate, null);
+	assert.equal(rates.termDistinctiveness, null);
 });
 
 test('csv round-trips quoted fields', () => {
