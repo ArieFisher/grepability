@@ -1,12 +1,12 @@
-// Runs the codebase's compile step in one version (command from config/codebase.json).
+// Runs the codebase's compile step in one codebase version (command from config/codebase.json).
 // setup.sh calls it for the published codebase; build-proposed.mjs calls it for the proposed codebase.
-// Usage: node compile-codebase.mjs <version>
-import {compileCodebase, versionDir, versions} from './lib.mjs';
+// Usage: node compile-codebase.mjs <codebase version>
+import {codebaseVersionDir, codebaseVersions, compileCodebase} from './lib.mjs';
 
-const [version] = process.argv.slice(2);
-if (!versions.includes(version)) {
-	throw new Error(`Usage: node compile-codebase.mjs <${versions.join(' | ')}>`);
+const [codebaseVersion] = process.argv.slice(2);
+if (!codebaseVersions.includes(codebaseVersion)) {
+	throw new Error(`Usage: node compile-codebase.mjs <${codebaseVersions.join(' | ')}>`);
 }
 
-compileCodebase(versionDir(version));
-console.log(`Compiled ${version}.`);
+compileCodebase(codebaseVersionDir(codebaseVersion));
+console.log(`Compiled ${codebaseVersion}.`);

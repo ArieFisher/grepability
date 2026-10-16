@@ -1,45 +1,45 @@
-// Unit tests for containment.mjs and agent-runner.mjs: the launch arguments, settings, and environment
-// that keep agent runs and script commands inside the project. Run: node --test scripts/
+// Self-tests for containment.mjs and agent-runner.mjs: the launch arguments, settings, and environment
+// that keep agent task runs and script commands inside the project. Run: node --test scripts/
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {checkSlotsEmpty, copyIntoSlot, copyName, loadAgent, readLimits, slotDir} from './agent-runner.mjs';
+import {checkAgentTaskRunSlotsEmpty, copyIntoAgentTaskRunSlot, agentTaskRunCopyName, loadAgent, readLimits, agentTaskRunSlotDir} from './agent-runner.mjs';
 import {agentArgs, agentEnv, agentSettings, checkAllowedTools, containedEnv} from './containment.mjs';
-import {commandTmpDir, projectRoot, publishedVersion, runChecked, toolCalls, workDir} from './lib.mjs';
+import {commandTmpDir, projectRoot, publishedCodebaseVersion, runChecked, toolCalls, workDir} from './lib.mjs';
 
 const agent = {tools: 'Read,Edit,Bash', allowedTools: ['Bash(npx tsc:*)'], maxBudgetUsd: 5};
-const reads = {denyRead: ['/project'], allowRead: ['/project/copy', '/run/tmp']};
-const argsFor = () => agentArgs({prompt: 'p', model: 'sonnet', agent, tmpDir: '/run/tmp', reads});
+const reads = {denyRead: ['/project'], allowRead: ['/project/agent-task-run-copy', '/agent-task-run/tmp']};
+const argsFor = () => agentArgs({prompt: 'p', model: 'sonnet', agent, tmpDir: '/agent-task-run/tmp', reads});
 const valueAfter = (args, flag) => args[args.indexOf(flag) + 1];
 
 test('agentArgs starts claude in restricted mode with the sandbox settings and no settings files', () => {
 	const args = argsFor();
 	assert.ok(args.includes('--restricted'));
 	assert.ok(!args.includes('--setting-sources'));
-	assert.deepEqual(JSON.parse(valueAfter(args, '--settings')), agentSettings('/run/tmp', reads));
+	assert.deepEqual(JSON.parse(valueAfter(args, '--settings')), agentSettings('/agent-task-run/tmp', reads));
 	assert.equal(valueAfter(args, '--permission-mode'), 'acceptEdits');
 	assert.equal(valueAfter(args, '--tools'), 'Read,Edit,Bash');
 	assert.equal(valueAfter(args, '--allowedTools'), 'Bash(npx tsc:*)');
 });
 
 test('agentSettings turns the sandbox on with no unsandboxed fallback and no automatic approval', () => {
-	const {sandbox} = agentSettings('/run/tmp', reads);
+	const {sandbox} = agentSettings('/agent-task-run/tmp', reads);
 	assert.equal(sandbox.enabled, true);
 	assert.equal(sandbox.failIfUnavailable, true);
 	assert.equal(sandbox.allowUnsandboxedCommands, false);
 	assert.equal(sandbox.autoAllowBashIfSandboxed, false);
-	assert.deepEqual(sandbox.filesystem.allowWrite, ['/run/tmp']);
+	assert.deepEqual(sandbox.filesystem.allowWrite, ['/agent-task-run/tmp']);
 	assert.deepEqual(sandbox.filesystem.denyRead, ['/project']);
-	assert.deepEqual(sandbox.filesystem.allowRead, ['/project/copy', '/run/tmp']);
+	assert.deepEqual(sandbox.filesystem.allowRead, ['/project/agent-task-run-copy', '/agent-task-run/tmp']);
 	assert.equal(sandbox.excludedCommands, undefined);
 });
 
-test('readLimits denies reads of the home folder and the project and allows the run copy, the temporary folder, and the shared dependencies', () => {
-	assert.deepEqual(readLimits('/slot/ky', '/run/tmp'), {
+test('readLimits denies reads of the home folder and the project and allows the agent task run copy, the temporary folder, and the shared dependencies', () => {
+	assert.deepEqual(readLimits('/slot/ky', '/agent-task-run/tmp'), {
 		denyRead: [os.homedir(), projectRoot],
-		allowRead: ['/slot/ky', '/run/tmp', path.join(workDir, 'deps')],
+		allowRead: ['/slot/ky', '/agent-task-run/tmp', path.join(workDir, 'deps')],
 	});
 });
 
@@ -49,7 +49,7 @@ test('checkAllowedTools accepts Bash rules and throws on any file tool rule', ()
 		assert.throws(() => checkAllowedTools(['Bash(ls:*)', rule]), /may hold only Bash/, rule);
 	}
 
-	assert.throws(() => agentArgs({prompt: 'p', model: 'sonnet', agent: {...agent, allowedTools: ['Edit']}, tmpDir: '/run/tmp'}), /Edit/);
+	assert.throws(() => agentArgs({prompt: 'p', model: 'sonnet', agent: {...agent, allowedTools: ['Edit']}, tmpDir: '/agent-task-run/tmp'}), /Edit/);
 });
 
 test('the task configuration holds only Bash rules in agent.allowedTools', () => {
@@ -61,7 +61,7 @@ test('containedEnv points TMPDIR and the npm cache into the temporary folder and
 	assert.equal(env.PATH, '/bin');
 	assert.equal(env.TMPDIR, '/project/work/tmp');
 	assert.equal(env.npm_config_cache, '/project/work/tmp/npm-cache');
-	assert.equal(agentEnv({}, '/run/tmp').CLAUDE_CODE_TMPDIR, '/run/tmp');
+	assert.equal(agentEnv({}, '/agent-task-run/tmp').CLAUDE_CODE_TMPDIR, '/agent-task-run/tmp');
 });
 
 test('runChecked gives commands the temporary folder inside the project', () => {
@@ -69,25 +69,25 @@ test('runChecked gives commands the temporary folder inside the project', () => 
 	assert.deepEqual(result.stdout.trim().split('\n'), [commandTmpDir, path.join(commandTmpDir, 'npm-cache')]);
 });
 
-test('copyIntoSlot throws when the slot still holds a run copy', () => {
-	const slot = `test-${process.pid}`;
-	fs.mkdirSync(path.join(slotDir(slot), copyName()), {recursive: true});
+test('copyIntoAgentTaskRunSlot throws when the slot still holds an agent task run copy', () => {
+	const slot = `self-test-${process.pid}`;
+	fs.mkdirSync(path.join(agentTaskRunSlotDir(slot), agentTaskRunCopyName()), {recursive: true});
 	try {
-		assert.throws(() => copyIntoSlot(slot, publishedVersion), /did not finish/);
+		assert.throws(() => copyIntoAgentTaskRunSlot(slot, publishedCodebaseVersion), /did not finish/);
 	} finally {
-		fs.rmSync(slotDir(slot), {recursive: true, force: true});
+		fs.rmSync(agentTaskRunSlotDir(slot), {recursive: true, force: true});
 	}
 });
 
-test('checkSlotsEmpty throws when any slot still holds a run copy, and passes when none does', () => {
-	const stale = `test-${process.pid}-stale`;
-	const empty = `test-${process.pid}-empty`;
-	fs.mkdirSync(path.join(slotDir(stale), copyName()), {recursive: true});
+test('checkAgentTaskRunSlotsEmpty throws when any slot still holds an agent task run copy, and passes when none does', () => {
+	const stale = `self-test-${process.pid}-stale`;
+	const empty = `self-test-${process.pid}-empty`;
+	fs.mkdirSync(path.join(agentTaskRunSlotDir(stale), agentTaskRunCopyName()), {recursive: true});
 	try {
-		assert.doesNotThrow(() => checkSlotsEmpty([empty]));
-		assert.throws(() => checkSlotsEmpty([empty, stale]), /did not finish/);
+		assert.doesNotThrow(() => checkAgentTaskRunSlotsEmpty([empty]));
+		assert.throws(() => checkAgentTaskRunSlotsEmpty([empty, stale]), /did not finish/);
 	} finally {
-		fs.rmSync(slotDir(stale), {recursive: true, force: true});
+		fs.rmSync(agentTaskRunSlotDir(stale), {recursive: true, force: true});
 	}
 });
 

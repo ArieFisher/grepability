@@ -1,62 +1,62 @@
-// Results table: each concept's search score and agent score per version, with the change between versions
-// and an overall row that leaves out the control concept.
+// Results table: each concept's search score and agent score per codebase version, with the change between
+// codebase versions and an overall row that leaves out the control concept.
 // Reads results/search-score.json (from search-score.mjs), which holds the ground truth state its scores used,
-// and results/agent-runs.json (from summarize-agents.mjs).
-// Without agent runs the script writes n/a for every agent score and a note above the table.
+// and results/agent-task-runs.json (from summarize-agents.mjs).
+// Without agent task runs the script writes n/a for every agent score and a note above the table.
 // Writes results/results-table.md.
 // Usage: node results-table.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import {loadConcepts, loadTasks, percent, projectRoot, readJson, truthStatement, versions} from './lib.mjs';
+import {codebaseVersions, loadConcepts, loadTasks, percent, projectRoot, readJson, truthStatement} from './lib.mjs';
 import {resultsTable} from './results.mjs';
 
 const resultsDir = path.join(projectRoot, 'results');
 const searchFile = path.join(resultsDir, 'search-score.json');
-const agentFile = path.join(resultsDir, 'agent-runs.json');
+const agentFile = path.join(resultsDir, 'agent-task-runs.json');
 if (!fs.existsSync(searchFile)) {
 	throw new Error(`Missing ${searchFile}: run scripts/search-score.mjs first.`);
 }
 
-const search = readJson(searchFile);
-const agentRuns = fs.existsSync(agentFile) ? readJson(agentFile) : [];
+const searchScoreResults = readJson(searchFile);
+const agentTaskRuns = fs.existsSync(agentFile) ? readJson(agentFile) : [];
 const table = resultsTable({
 	concepts: loadConcepts().concepts,
 	tasks: loadTasks().tasks,
-	searchResults: search.results,
-	agentRuns,
-	versionNames: versions,
+	searchResults: searchScoreResults.results,
+	agentTaskRuns,
+	codebaseVersionNames: codebaseVersions,
 });
 
 const points = value => value === null ? 'n/a' : `${value >= 0 ? '+' : ''}${Math.round(value * 100)} points`;
-const agentCell = agent => agent === null ? 'n/a' : `${percent(agent.score)} (${agent.successes}/${agent.runs}, ${percent(agent.interval.low)} to ${percent(agent.interval.high)})`;
-const scoreCells = ({byVersion, change}) => [
-	...versions.map(version => percent(byVersion[version].searchScore)),
+const agentCell = agent => agent === null ? 'n/a' : `${percent(agent.score)} (${agent.successes}/${agent.agentTaskRuns}, ${percent(agent.interval.low)} to ${percent(agent.interval.high)})`;
+const scoreCells = ({byCodebaseVersion, change}) => [
+	...codebaseVersions.map(codebaseVersion => percent(byCodebaseVersion[codebaseVersion].searchScore)),
 	points(change.searchScore),
-	...versions.map(version => agentCell(byVersion[version].agent)),
+	...codebaseVersions.map(codebaseVersion => agentCell(byCodebaseVersion[codebaseVersion].agent)),
 	points(change.agentScore),
 ];
 
 const header = [
 	'Concept',
-	...versions.map(version => `Search score ${version}`),
+	...codebaseVersions.map(codebaseVersion => `Search score ${codebaseVersion}`),
 	'Search score change',
-	...versions.map(version => `Agent score ${version}`),
+	...codebaseVersions.map(codebaseVersion => `Agent score ${codebaseVersion}`),
 	'Agent score change',
-	...versions.map(version => `Recall ${version}`),
-	...versions.map(version => `Precision ${version}`),
+	...codebaseVersions.map(codebaseVersion => `Recall ${codebaseVersion}`),
+	...codebaseVersions.map(codebaseVersion => `Precision ${codebaseVersion}`),
 ];
 const conceptLine = row => [
 	row.name,
 	...scoreCells(row),
-	...versions.map(version => percent(row.byVersion[version].recall)),
-	...versions.map(version => percent(row.byVersion[version].precision)),
+	...codebaseVersions.map(codebaseVersion => percent(row.byCodebaseVersion[codebaseVersion].recall)),
+	...codebaseVersions.map(codebaseVersion => percent(row.byCodebaseVersion[codebaseVersion].precision)),
 ];
-const overallLine = ['**Overall**', ...scoreCells(table.overall), ...versions.flatMap(() => ['', ''])];
+const overallLine = ['**Overall**', ...scoreCells(table.overall), ...codebaseVersions.flatMap(() => ['', ''])];
 const notes = [
-	truthStatement(search.truth),
-	...(agentRuns.length === 0 ? ['No agent runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.'] : []),
-	...(table.skippedRuns > 0 ? [`${table.skippedRuns} edit runs were scored without the type check, the tests, or the hidden test (--skip-tests), and count as successes when they missed no line.`] : []),
-	...(table.unknownRuns > 0 ? [`${table.unknownRuns} edit runs had a test file that stopped partway during scoring, so their success is unknown. This script leaves them out of the agent scores; rescore them.`] : []),
+	truthStatement(searchScoreResults.truth),
+	...(agentTaskRuns.length === 0 ? ['No agent task runs are summarized yet, so every agent score shows n/a: run scripts/summarize-agents.mjs.'] : []),
+	...(table.skippedAgentTaskRuns > 0 ? [`${table.skippedAgentTaskRuns} agent task runs of edit tasks were scored without the type check, the codebase verification suite, or the withheld acceptance test (--skip-verification-suite), and count as successes when they missed no line.`] : []),
+	...(table.unknownAgentTaskRuns > 0 ? [`${table.unknownAgentTaskRuns} agent task runs of edit tasks had a verification file that stopped partway during scoring, so their success is unknown. This script leaves them out of the agent scores; rescore them.`] : []),
 ];
 const markdown = [
 	'# Results',

@@ -1,6 +1,6 @@
 {
 	"note": "The rules for these edits are in docs/proposed-edits.md.",
-	"renames": [
+	"nameEdits": [
 		{"concept": "retry-count", "file": "source/types/retry.ts", "line": 84, "name": "attemptCount", "newName": "retryCount"},
 		{"concept": "retry-count", "file": "source/utils/normalize.ts", "line": 32, "name": "attemptCount", "newName": "retryCount"},
 		{"concept": "retry-delay", "file": "source/core/retry-timing.ts", "line": 26, "name": "retryAfter", "newName": "retryAfterDelay"},
@@ -17,7 +17,7 @@
 		{"concept": "user-abort", "file": "source/core/constants.ts", "line": 34, "name": "supportsAbortSignal", "newName": "supportsSignalAny"},
 		{"concept": "user-abort", "file": "source/core/Ky.ts", "line": 439, "name": "#abortController", "newName": "#internalController"}
 	],
-	"comments": [
+	"wordingEdits": [
 		{"concept": "retry-count", "file": "source/types/retry.ts", "line": 16, "from": "The number of retries attempted.", "to": "The retry count."},
 		{"concept": "retry-count", "file": "source/types/hooks.ts", "line": 37, "from": "The number of retries attempted.", "to": "The retry count."},
 		{"concept": "retry-count", "file": "source/types/hooks.ts", "line": 50, "from": "The number of retries attempted.", "to": "The retry count."},

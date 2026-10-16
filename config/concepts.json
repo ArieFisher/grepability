@@ -4,8 +4,8 @@
 			"id": "retry-count",
 			"name": "Retry count",
 			"definition": "The number of the current retry: 0 for the initial request where hooks report it, 1 for the first retry. Includes the number passed to the retry delay function, whatever it is called.",
-			"search": "retry[\\s_-]?count",
-			"forms": "retry[\\s_-]?count|attempt[\\s_-]?count|number of retries attempted",
+			"proposedSearchPattern": "retry[\\s_-]?count",
+			"publishedSearchPattern": "retry[\\s_-]?count|attempt[\\s_-]?count|number of retries attempted",
 			"seeds": [
 				{
 					"file": "source/core/Ky.ts",
@@ -79,7 +79,7 @@
 			"id": "retry-delay",
 			"name": "Retry delay",
 			"definition": "How long Ky waits before a retry: the computed backoff, its limits, jitter applied to it, delays taken from retry timing headers, and custom delays for forced retries. Excludes the generic sleep helper itself.",
-			"search": "delay",
+			"proposedSearchPattern": "delay",
 			"seeds": [
 				{
 					"file": "source/core/Ky.ts",
@@ -315,7 +315,7 @@
 			"id": "progress-callback",
 			"name": "Progress callback",
 			"definition": "The upload and download progress callbacks the caller passes in, the progress object they receive, and the code that calls them.",
-			"search": "progress",
+			"proposedSearchPattern": "progress",
 			"seeds": [
 				{
 					"file": "source/types/options.ts",
@@ -394,7 +394,7 @@
 			"id": "user-abort",
 			"name": "Caller abort",
 			"definition": "The caller stopping a request through the abort signal they pass in, including merging callers' signals and checking whether the caller aborted. Excludes cancelling unused body streams, Ky's own timeout aborts, and checks for platform support of abort signals.",
-			"search": "abort",
+			"proposedSearchPattern": "abort",
 			"seeds": [
 				{
 					"file": "source/types/options.ts",
@@ -573,7 +573,7 @@
 			"id": "jitter",
 			"name": "Jitter (control)",
 			"definition": "Random variation added to the retry delay. Control concept: already named consistently, so the proposed codebase build leaves it unchanged.",
-			"search": "jitter",
+			"proposedSearchPattern": "jitter",
 			"control": true,
 			"seeds": [
 				{

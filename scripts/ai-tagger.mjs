@@ -1,41 +1,42 @@
-// AI stand-in reviewer: tags the review sheet, one chunk per fresh session, with no tools.
-// Each run is independent; run it twice with different names to get two reviewers. A person can
-// replace either file by tagging truth/review-sheet.csv by hand.
+// AI stand-in tagger: tags the tagging sheet, one chunk per fresh session, with no tools.
+// Each execution of the script is independent; run it twice with different names to get two taggers. A person can
+// replace either file by tagging truth/tagging-sheet.csv by hand.
 // Each sheet line is shown with the source lines around it (--context, default 3 each side), so the
-// reviewer sees which option or function a comment belongs to rather than the line on its own.
-// Usage: node ai-review.mjs <reviewer-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]
+// tagger sees which option or function a comment belongs to rather than the line on its own.
+// Usage: node ai-tagger.mjs <tagger-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {acceptTags, fromCsv, integerOption, loadConcepts, loadTasks, option, projectRoot, publishedVersion, toCsv, versionDir} from './lib.mjs';
+import {acceptTags, checkFlags, codebaseVersionDir, fromCsv, integerOption, loadConcepts, loadTasks, option, projectRoot, publishedCodebaseVersion, toCsv} from './lib.mjs';
 
 const argv = process.argv.slice(2);
+checkFlags(argv, ['model', 'chunk', 'parallel', 'context'], [], 1);
 const name = argv[0];
 if (!name || name.startsWith('--')) {
-	throw new Error('Usage: node ai-review.mjs <reviewer-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]');
+	throw new Error('Usage: node ai-tagger.mjs <tagger-name> [--model sonnet] [--chunk 120] [--parallel 4] [--context 3]');
 }
 
-// The reviewer runs the same command and model as the agent, so one place names them.
+// The tagger starts the same command and model as the agent, so one place holds them.
 const {agent} = loadTasks();
 const model = option(argv, 'model', agent.model);
 const chunkSize = integerOption(argv, 'chunk', 120, 1);
 const parallel = integerOption(argv, 'parallel', 4, 1);
 const contextLines = integerOption(argv, 'context', 3, 0);
-// A hand-tagged file under this name would be lost to a rerun, so an existing file stops the script.
-// Remove the file, or pick another reviewer name, to run again.
-const output = path.join(projectRoot, 'truth', `reviewer-${name}.csv`);
+// A hand-tagged file under this name would be lost to a second execution, so an existing file stops the script.
+// Remove the file, or pick another tagger name, to run the script again.
+const output = path.join(projectRoot, 'truth', `tagger-${name}.csv`);
 if (fs.existsSync(output)) {
-	throw new Error(`${output} exists. Remove it or pick another reviewer name.`);
+	throw new Error(`${output} exists. Remove it or pick another tagger name.`);
 }
 const {concepts} = loadConcepts();
-const rows = fromCsv(fs.readFileSync(path.join(projectRoot, 'truth', 'review-sheet.csv'), 'utf8'));
+const rows = fromCsv(fs.readFileSync(path.join(projectRoot, 'truth', 'tagging-sheet.csv'), 'utf8'));
 const conceptText = concepts.map(concept => `- ${concept.id}: ${concept.name}. ${concept.definition}`).join('\n');
 
 // Source text of the published codebase, read once per file, for the context around each sheet line.
 const sourceCache = new Map();
 const sourceLines = file => {
 	if (!sourceCache.has(file)) {
-		sourceCache.set(file, fs.readFileSync(path.join(versionDir(publishedVersion), file), 'utf8').split('\n'));
+		sourceCache.set(file, fs.readFileSync(path.join(codebaseVersionDir(publishedCodebaseVersion), file), 'utf8').split('\n'));
 	}
 
 	return sourceCache.get(file);

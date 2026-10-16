@@ -46,7 +46,7 @@
 			"id": "retry-count-start",
 			"concept": "retry-count",
 			"kind": "edit",
-			"hiddenTest": "hidden-tests/retry-count-start.ts",
+			"withheldAcceptanceTest": "withheld-acceptance-tests/retry-count-start.ts",
 			"requiredLines": [
 				"source/core/Ky.ts:666",
 				"source/utils/normalize.ts:32",
@@ -59,7 +59,7 @@
 	],
 	"cloud": {
 		"defaultBranch": "main",
-		"runBranchPrefix": "run-",
+		"cloudAgentTaskRunBranchPrefix": "run-",
 		"replyFile": "REPLY.md",
 		"pendingLimitMinutes": 60
 	}

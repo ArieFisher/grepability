@@ -1,12 +1,12 @@
-// Writes the review sheet: every comment line and every line holding a string literal in the published codebase.
-// Reviewers tag each row with the concept ids it refers to. Names in code are covered by the type checker.
-// Usage: node extract-review-sheet.mjs
+// Writes the tagging sheet: every comment line and every line holding a string literal in the published codebase.
+// Taggers tag each row with the concept ids it refers to. Names in code are covered by the type checker.
+// Usage: node extract-tagging-sheet.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import {commentLines, corpusFiles, key, projectRoot, publishedVersion, toCsv, versionDir} from './lib.mjs';
+import {codebaseVersionDir, commentLines, corpusFiles, key, projectRoot, publishedCodebaseVersion, toCsv} from './lib.mjs';
 
-const root = versionDir(publishedVersion);
+const root = codebaseVersionDir(publishedCodebaseVersion);
 const rows = new Map();
 for (const {file, line, text} of commentLines(root)) {
 	rows.set(key(file, line), {file, line, kind: 'comment', text});
@@ -38,11 +38,11 @@ for (const file of corpusFiles(root)) {
 }
 
 const sorted = [...rows.values()].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
-const output = path.join(projectRoot, 'truth', 'review-sheet.csv');
+const output = path.join(projectRoot, 'truth', 'tagging-sheet.csv');
 fs.mkdirSync(path.dirname(output), {recursive: true});
 fs.writeFileSync(output, toCsv([
 	['file', 'line', 'kind', 'concepts', 'text'],
 	...sorted.map(row => [row.file, row.line, row.kind, '', row.text]),
 ]));
 console.log(`${sorted.length} lines (${sorted.filter(row => row.kind === 'comment').length} comment, ${sorted.filter(row => row.kind === 'string').length} string) -> ${output}`);
-console.log('Each reviewer copies this file to truth/reviewer-<name>.csv and fills the concepts column with space-separated concept ids.');
+console.log('Each tagger copies this file to truth/tagger-<name>.csv and fills the concepts column with space-separated concept ids.');

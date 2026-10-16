@@ -18,7 +18,7 @@ These rules govern all prose: **chat**, **documents**, and **GitHub** (pull requ
 
 - **Form:** plain declarative sentences in active voice. Not epigrammatic, not aphoristic.
 - **Structure:** no antithesis. Present each point on its own, without a contrasting counterpart.
-- **Imagery:** no personification. The test: a part's verb names an operation the part performs, never a stance it takes. Operations pass: holds, determines, skips, detects, flags, stands for, contains, parses, publishes. Verbs of intent, awareness, or choice fail: own, know, decide, refuse, notice, warn, name — examples, not the whole list; "rides", "waits", and "speaks" fail the same test. Boundary: "the script reads the file" passes because reading is the operation; "the check refuses" fails because refusal is a stance. The second test: the subject is the part that performs the operation. A measure, a score, a result, a document, a version, a label, or a term performs nothing — examples, not the whole list; the script, the build, the hook, the type checker, the reviewer, or the person does. Boundary: "the search score runs the search" fails because the search score is a measurement; "the search-score script runs the search" passes. Similes are fine. State the plain meaning in place of a metaphor: write "the notice's contents change", never "the notice changes shape". 
+- **Imagery:** no personification. The test: a part's verb names an operation the part performs, never a stance it takes. Operations pass: holds, determines, skips, detects, flags, stands for, contains, parses, publishes. Verbs of intent, awareness, or choice fail: own, know, decide, refuse, notice, warn, name — examples, not the whole list; "rides", "waits", and "speaks" fail the same test. Boundary: "the script reads the file" passes because reading is the operation; "the check refuses" fails because refusal is a stance. The second test: the subject is the part that performs the operation. A measure, a score, a result, a document, a codebase version, a label, or a term performs nothing — examples, not the whole list; the script, the build, the hook, the type checker, the tagger, or the person does. Boundary: "the search score runs the pattern search" fails because the search score is a measurement; "the search-score script runs the pattern search" passes. Similes are fine. State the plain meaning in place of a metaphor: write "the notice's contents change", never "the notice changes shape". 
 - **Diction:** plain English, Saxon words, technical terms preserved. No contractions and no abbreviations, except i.e., e.g., etc., FYI, and TL;DR. Write "application", not "app".
 - **Voice:** Facts in active voice, no passive voice, no filler sentences.
 - **Concision:** cut filler, hedging, qualifiers, and repetition. Keep mechanisms, scopes, and reasons: say what a rule does, what it covers, and why it exists, even when a shorter sentence could imply it. The test is one pass — a first-time reader never re-reads a sentence or asks what a term covers. When in doubt, spend the extra sentence.
@@ -28,7 +28,7 @@ These rules govern all prose: **chat**, **documents**, and **GitHub** (pull requ
 
 `docs/vocabulary.md` is the term canon: one term per concept, across every platform and every document.
 
-- Read it in full when starting a branch. Use the vocabulary when writing any prose (e.g. code comments, test names, the commit message, issue and pull request text, etc.). Never vary word choice for style.
+- Read it in full when starting a branch. Use the vocabulary when writing any prose (e.g. code comments, self-test names, the commit message, issue and pull request text, etc.). Never vary word choice for style.
 - **At every commit**, sweep the change's **new** prose and:
   - *retired synonyms*: Replace a retired synonym with its canonical term.
   - *new concepts*: Define new concepts in `docs/vocabulary.md` on the same branch, as its own `docs:` commit.
@@ -108,7 +108,7 @@ This extends [Group like concepts into a single location](#group-like-concepts-i
 A plan is final only after it answers the questions below in its own section, titled "Simplicity". This covers every plan: a sprint plan, a scope document, and a plan written in chat. Answer each question from the code. A plan's own account of the code is a claim to check.
 
 1. **Size.** Is the code after the change simpler than the code before it? Name what the change adds and what it removes. When the code grows, list each addition and the requirement it implements.
-2. **Duplicates.** Which duplicated code does the change pass through? Each one is a candidate to merge first, under [Collapse a path before opening a second one](#collapse-a-path-before-opening-a-second-one). A merge that changes no behavior goes in its own `refactor/` pull request, ahead of the change that needs it, so the existing suite proves it.
+2. **Duplicates.** Which duplicated code does the change pass through? Each one is a candidate to merge first, under [Collapse a path before opening a second one](#collapse-a-path-before-opening-a-second-one). A merge that changes no behavior goes in its own `refactor/` pull request, ahead of the change that needs it, so the existing self-tests prove it.
 3. **Removals.** Can any step, stored field, setting, or branch the plan adds come out without losing a requirement?
 4. **Orphans.** Does the change leave a function, field, or path with no reader? Remove it in the same change.
 5. **Bounds.** Does the plan hold anything unbounded: a walk over page content, a wait, a retry, a count, a queue? Each gets a cap with a stated value, a reason for the value, and the behavior when the cap is reached.
@@ -165,8 +165,8 @@ Before creating a branch, also list the work waiting to reach `main`: open pull 
 
 Route every review finding to exactly one place. Never leave an actionable item as a non-blocking note for me to remember and re-instruct.
 
-1. **Trivial and in-scope: fix now.** Apply the fix in the same change, re-run the test command, and mention it in one line. Trivial means all of these: no behavior change; touches only files and lines already in the diff; the existing suite staying green proves it.
-2. **In-scope behavior bug: fix now, with a test.** A defect in what the current diff does never routes to an issue, because deferring it ships it. Add a test that fails without the fix.
+1. **Trivial and in-scope: fix now.** Apply the fix in the same change, run the self-tests again, and mention it in one line. Trivial means all of these: no behavior change; touches only files and lines already in the diff; the existing self-tests staying green prove it.
+2. **In-scope behavior bug: fix now, with a self-test.** A defect in what the current diff does never routes to an issue, because deferring it ships it. Add a self-test that fails without the fix.
 3. **Actionable and out-of-scope:ask if I want to open a GitHub issue.** This covers anything that changes behavior outside the diff, spans untouched files, needs a judgement call, or grows the diff. Title prefix `[follow-up]`. The body links the pull request and quotes the finding. Label `follow-up`, plus `tech-debt` if apt. Search open issues first and comment on an existing one rather than refiling. The pull request body's Reviewer notes section links the issues.
 4. **FYI, no action: one line** in the pull request notes. No issue.
 

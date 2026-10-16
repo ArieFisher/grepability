@@ -31,6 +31,8 @@ Narratively, it makes sense.  But can we test it?
 
 ## The experiment
 
+For the definition of every term below, see [docs/vocabulary.md](docs/vocabulary.md).
+
 1. **Find something to test**: Choose a published codebase (a small, well-regarded utility) where the same concept(s) are represented differently (in words, variables, function names, etc): [KY: Delightful HTTP Requests \- a tiny and elegant HTTP client](https://github.com/sindresorhus/ky)  
      
 2. **Create ground truth**: Edit a copy of the codebase so that same concepts only carry a single name. In this way a simple text search (`grep`) now finds the field, the parameter, and comment.  The edits were made such that they did not change behaviour or line number.  
@@ -39,13 +41,13 @@ Narratively, it makes sense.  But can we test it?
      
    Use the harmonic mean of:  
      
-4. the **share of the concept's appearances** found by a search (i.e. high true positives)  
-   e.g. if the concept appears in the codebase 10 times and the search finds 9 of them, this component scores 90%.  It is more ‘grepable’ than a codebase that scores 70%.  
+4. the **share of the concept's appearances** found by a pattern search (i.e. high true positives)  
+   e.g. if the concept appears in the codebase 10 times and the pattern search finds 9 of them, this component scores 90%.  It is more ‘grepable’ than a codebase that scores 70%.  
    A high score means that the concepts are **consistently** represented across the codebase using the same terms.  
    A low score indicates the need to refactor concept names for consistency.  
      
-5. the share of the search results **that belong** to the concept (i.e. low false positives)  
-   e.g. in the example above, if the search found 9 of the 10 instances but also found 80 ‘false positives’ \- search results that were *unrelated* to the concept (but may have shared a word), then this component scores 10% (9 of 90).  
+5. the share of the pattern search results **that belong** to the concept (i.e. low false positives)  
+   e.g. in the example above, if the pattern search found 9 of the 10 instances but also found 80 ‘false positives’ \- results that were *unrelated* to the concept (but may have shared a word), then this component scores 10% (9 of 90).  
      
    A high score means that the terms chosen to represent concepts **distinguish** them easily. So a concept that was represented by a broad term (such as "delay") that matches every line of the concept \- along with hundreds of unrelated lines \- would hurt the ‘grepability’ of this code base.  
    A low score indicates the need to refactor concept names to be more distinguishing.  
@@ -58,9 +60,9 @@ Narratively, it makes sense.  But can we test it?
 
 - Give 2 Claude Code agents the *same task* (prompt) and 1 of the 2 codebases.  
 - Each task was repeated 10 times for each codebase.  So 20 agents were given the *same* prompt: 10 asked to work on the original codebase, 10 on the edited one.  
-- This set of 20 runs was repeated twice more, with increasingly complicated tasks.  
-  *Note:* The agents had: no knowledge of the hypothesis or each other, they simply did the task they were assigned.  Each run is its own Claude Code session, a fresh copy of the codebase; the same folder name and a single fresh commit, so the agent also could not tell which version it was working on; and user settings, MCP servers, and saved session history were switched off;  
-- After all 60 runs completed, their output was collated and scored
+- This set of 20 agent task runs was repeated twice more, with increasingly complicated tasks.  
+  *Note:* The agents had: no knowledge of the hypothesis or each other, they simply did the task they were assigned.  Each agent task run is its own Claude Code session in a fresh agent task run copy of the codebase, with the same folder name and a single fresh commit, so the agent also could not tell which codebase version it was working on; and user settings, MCP servers, and saved session history were switched off;  
+- After all 60 agent task runs completed, their output was collated and scored
 
 **Task 1: Find**
 
@@ -69,12 +71,12 @@ Narratively, it makes sense.  But can we test it?
 **Task 2: Refactor**
 
 - Prompt the agent to rename a concept (in this experiment `retry count` to `retry number`) everywhere: code, public types, hook state, and even prose comments.  
-- Success is judged not only on *how many* of the changes were made, but also that the code works, it exhibits no behaviour changes, and all 1,500+ of the library’s own verification tests still pass.
+- Success is judged not only on *how many* of the changes were made, but also that the code works, it exhibits no behaviour changes, and all 1,500+ of the library’s own individual codebase verifications still pass.
 
 **Task 3: Breaking change**
 
 - Prompt the agent to make a (small) change to the logic that, if not handled properly, would change the behaviour.  
-- Success is judged not only by the number of changes that were made, but also that the resulting code behaves exactly the same (meaning the agent properly compensated for its change), and all 1,500+ of the library’s own verification tests still pass.a
+- Success is judged not only by the number of changes that were made, but also that the resulting code behaves exactly the same (meaning the agent properly compensated for its change), and all 1,500+ of the library’s own individual codebase verifications still pass.a
 
 ## The Results
 

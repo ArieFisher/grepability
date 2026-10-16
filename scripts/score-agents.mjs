@@ -1,30 +1,33 @@
-// Scores agent runs.
+// Scores agent task runs.
 //   find tasks: recall of the listed lines against the ground truth.
 //   edit tasks: which concept lines (or required lines) the agent changed, which other lines it changed,
-//               type checks, test regressions, and the hidden test if the task has one.
-// Writes work/runs/scores.json (no version) and results/blind-review.csv (no version column; a person marks
-// wrong edits on it before looking at the key). An existing sheet keeps its rows and answers; only new runs are added.
+//               type checks, edit regressions, and the withheld acceptance test if the task has one.
+// Writes work/agent-task-runs/scores.json (no codebase version) and results/blind-edits-review.csv (no codebase
+// version column; a person marks wrong edits on it before looking at the key). An existing sheet keeps its rows and
+// answers; only new agent task runs are added.
 // Next: summarize-agents.mjs joins the scores to the key, after the sheet is answered.
-// Without --skip-tests, every run copy and both versions' baseline test results must be present;
-// a missing one stops the script rather than scoring the run on recall alone.
-// Usage: node score-agents.mjs [--skip-tests]
+// Without --skip-verification-suite, every agent task run copy and both codebase versions' pre-edit codebase
+// verification suite results must be present; a missing one stops the script rather than scoring the agent task
+// run on recall alone.
+// Usage: node score-agents.mjs [--skip-verification-suite]
 import fs from 'node:fs';
 import path from 'node:path';
-import {blindSheetColumns, blindSheetRows, changedOriginalLines, corpusFiles, editSuccess, findScore, fromCsv, hiddenTestPath, inCorpus, isHiddenTest, isNameLine, kindTally, listedLines, loadCodebase, loadConcepts, loadTasks, matchesForms, projectRoot, publishedVersion, judgeLostTitles, readJson, regressionCandidates, renamedTitles, rerunTest, runChecked, runMeasures, splitKey, toCsv, truthLines, versionDir, versions, workDir, writeJson} from './lib.mjs';
+import {agentTaskRunMeasures, checkFlags, blindEditsReviewSheetColumns, blindEditsReviewSheetRows, changedOriginalLines, codebaseVersionDir, codebaseVersions, corpusFiles, editRegressionCandidates, editSuccess, findScore, fromCsv, inCorpus, isNameLine, isWithheldAcceptanceTest, judgeLostVerificationTitles, kindTally, listedLines, loadCodebase, loadConcepts, loadTasks, matchesPublishedSearchPattern, projectRoot, publishedCodebaseVersion, readJson, reexecuteVerification, renamedVerificationTitles, runChecked, splitKey, toCsv, truthLines, withheldAcceptanceTestPath, workDir, writeJson} from './lib.mjs';
 
-const skipTests = process.argv.includes('--skip-tests');
+checkFlags(process.argv.slice(2), [], ['skip-verification-suite']);
+const skipVerificationSuite = process.argv.includes('--skip-verification-suite');
 const config = loadTasks();
 const {concepts} = loadConcepts();
 const truth = readJson(path.join(projectRoot, 'truth', 'truth.json'));
-const runsDir = path.join(workDir, 'runs');
-const runKey = readJson(path.join(runsDir, 'key.json'));
+const agentTaskRunsDir = path.join(workDir, 'agent-task-runs');
+const agentTaskRunKey = readJson(path.join(agentTaskRunsDir, 'key.json'));
 const resultsDir = path.join(projectRoot, 'results');
 fs.mkdirSync(resultsDir, {recursive: true});
 
 // Files an agent may name in a find reply, each with its line count: the published codebase's corpus
 // when present. Without the checkout, every file in the truth, counted up to its highest truth line;
 // a range past that line holds no truth line, so clipping it loses nothing.
-const publishedRoot = versionDir(publishedVersion);
+const publishedRoot = codebaseVersionDir(publishedCodebaseVersion);
 const knownFiles = new Map();
 if (fs.existsSync(path.join(publishedRoot, loadCodebase().corpus.directory))) {
 	for (const file of corpusFiles(publishedRoot)) {
@@ -39,42 +42,42 @@ if (fs.existsSync(path.join(publishedRoot, loadCodebase().corpus.directory))) {
 	}
 }
 
-const baseline = Object.fromEntries(versions.map(version => {
-	const file = path.join(workDir, `tests-${version}.json`);
+const preEditResults = Object.fromEntries(codebaseVersions.map(codebaseVersion => {
+	const file = path.join(workDir, `pre-edit-results-${codebaseVersion}.json`);
 	if (fs.existsSync(file)) {
-		return [version, readJson(file)];
+		return [codebaseVersion, readJson(file)];
 	}
 
-	if (!skipTests) {
-		throw new Error(`Missing baseline ${file}: run scripts/run-tests.mjs ${version}, or pass --skip-tests to score recall only.`);
+	if (!skipVerificationSuite) {
+		throw new Error(`Missing pre-edit codebase verification suite results ${file}: run scripts/execute-verification-suite.mjs ${codebaseVersion}, or pass --skip-verification-suite to score recall only.`);
 	}
 
-	return [version, {tests: {}}];
+	return [codebaseVersion, {verifications: {}}];
 }));
 
 const scored = [];
-for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
-	if (!versions.includes(version)) {
-		throw new Error(`Run ${runId}: the key names version "${version}", expected one of ${versions.join(', ')}. A run recorded before the versions were named needs a fresh run.`);
+for (const [agentTaskRunId, {codebaseVersion, task: taskId}] of Object.entries(agentTaskRunKey)) {
+	if (!codebaseVersions.includes(codebaseVersion)) {
+		throw new Error(`Agent task run ${agentTaskRunId}: the key names codebase version "${codebaseVersion}", expected one of ${codebaseVersions.join(', ')}. An agent task run recorded before the codebase versions were named needs a fresh agent task run.`);
 	}
 
-	const runDir = path.join(runsDir, runId);
-	const run = readJson(path.join(runDir, 'run.json'));
+	const agentTaskRunDir = path.join(agentTaskRunsDir, agentTaskRunId);
+	const agentTaskRun = readJson(path.join(agentTaskRunDir, 'run.json'));
 	const task = config.tasks.find(item => item.id === taskId);
 	const concept = concepts.find(item => item.id === task.concept);
 	const entry = truth.concepts[task.concept];
 	const expected = new Set(truthLines(entry));
-	const diff = fs.readFileSync(path.join(runDir, 'diff.patch'), 'utf8');
+	const diff = fs.readFileSync(path.join(agentTaskRunDir, 'diff.patch'), 'utf8');
 	const row = {
-		runId,
-		version,
+		agentTaskRunId,
+		codebaseVersion,
 		task: taskId,
-		agentError: run.isError || run.exitCode !== 0 || Boolean(run.runError),
-		...runMeasures(run),
+		agentError: agentTaskRun.isError || agentTaskRun.exitCode !== 0 || Boolean(agentTaskRun.agentTaskRunError),
+		...agentTaskRunMeasures(agentTaskRun),
 	};
 
 	if (task.kind === 'find') {
-		const listed = listedLines(fs.readFileSync(path.join(runDir, 'final.md'), 'utf8'), knownFiles);
+		const listed = listedLines(fs.readFileSync(path.join(agentTaskRunDir, 'final.md'), 'utf8'), knownFiles);
 		Object.assign(row, findScore(listed, expected));
 		row.targetLines = expected.size;
 		row.byKind = kindTally(truthLines(entry), listed, entry.lines);
@@ -82,9 +85,10 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		const changed = changedOriginalLines(diff);
 		const sourceChanged = [...changed].filter(item => inCorpus(item));
 		// Lines the agent had to change: the task's required lines, or for a rename task, the concept's lines that
-		// name it (a name the type checker found, or wording matching one of the concept's forms in that version).
-		if (!task.requiredLines && !concept.forms) {
-			throw new Error(`Concept ${concept.id} has no "forms" pattern in config/concepts.json, which task ${task.id} needs to pick its target lines.`);
+		// name it (a name the type checker found, or wording matching the concept's published search pattern in that
+		// codebase version).
+		if (!task.requiredLines && !concept.publishedSearchPattern) {
+			throw new Error(`Concept ${concept.id} has no "publishedSearchPattern" in config/concepts.json, which task ${task.id} needs to pick its target lines.`);
 		}
 
 		const targets = new Set(task.requiredLines ?? [...expected].filter(item => {
@@ -93,10 +97,10 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 			}
 
 			const {file, line} = splitKey(item);
-			return matchesForms(fs.readFileSync(path.join(versionDir(version), file), 'utf8').split('\n'), line, concept.forms);
+			return matchesPublishedSearchPattern(fs.readFileSync(path.join(codebaseVersionDir(codebaseVersion), file), 'utf8').split('\n'), line, concept.publishedSearchPattern);
 		}));
 		if (targets.size === 0) {
-			throw new Error(`Task ${task.id} has no target lines in version ${version}.`);
+			throw new Error(`Task ${task.id} has no target lines in codebase version ${codebaseVersion}.`);
 		}
 
 		row.targetLines = targets.size;
@@ -104,52 +108,55 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 		row.missed = [...targets].filter(item => !changed.has(item)).length;
 		row.otherSourceLinesChanged = sourceChanged.filter(item => !expected.has(item) && !targets.has(item)).length;
 		row.recall = (targets.size - row.missed) / targets.size;
-		row.testsRun = !skipTests;
+		row.verificationSuiteExecuted = !skipVerificationSuite;
 
-		if (!skipTests && !fs.existsSync(run.directory)) {
-			throw new Error(`Run ${runId}: run copy ${run.directory} is gone, so its tests cannot run. Pass --skip-tests to score recall only.`);
+		if (!skipVerificationSuite && !fs.existsSync(agentTaskRun.directory)) {
+			throw new Error(`Agent task run ${agentTaskRunId}: agent task run copy ${agentTaskRun.directory} is gone, so its codebase verification suite cannot execute. Pass --skip-verification-suite to score recall only.`);
 		}
 
-		if (!skipTests) {
-			// The hidden test lands in the codebase's test directory, where the test run picks it up.
-			if (task.hiddenTest) {
-				fs.copyFileSync(path.join(projectRoot, task.hiddenTest), hiddenTestPath(run.directory));
+		if (!skipVerificationSuite) {
+			// The withheld acceptance test lands in the codebase's verification folder, where the codebase
+			// verification suite execution picks it up.
+			if (task.withheldAcceptanceTest) {
+				fs.copyFileSync(path.join(projectRoot, task.withheldAcceptanceTest), withheldAcceptanceTestPath(agentTaskRun.directory));
 			}
 
-			// An old result file is removed first, so a failed run cannot be scored from a stale one. Exit
-			// status 1 with a fresh file means the type check failed, which is a result; no file means the run failed.
-			const output = path.join(runDir, 'tests.json');
+			// An old result file is removed first, so a failed codebase verification suite execution cannot be scored
+			// from a stale one. Exit status 1 with a fresh file means the type check failed, which is a result; no file
+			// means the codebase verification suite execution failed.
+			const output = path.join(agentTaskRunDir, 'verification-suite.json');
 			fs.rmSync(output, {force: true});
-			runChecked('node', [path.join(projectRoot, 'scripts', 'run-tests.mjs'), run.directory, output], {stdio: 'inherit'});
+			runChecked('node', [path.join(projectRoot, 'scripts', 'execute-verification-suite.mjs'), agentTaskRun.directory, output], {stdio: 'inherit'});
 			if (!fs.existsSync(output)) {
-				throw new Error(`Run ${runId}: the test run wrote no result in ${output}.`);
+				throw new Error(`Agent task run ${agentTaskRunId}: the codebase verification suite execution wrote no result in ${output}.`);
 			}
 
-			const tests = readJson(output);
-			// A regression is a test that fails every rerun, under its new title when the diff renamed it, or a
-			// removed test. A test that passes a rerun is flaky. judgeLostTitles gives each lost title one rerun, up
-			// to its limit per test file, and reports a test file that stopped partway.
-			const testsConfig = loadCodebase().tests;
-			const {rerun, files} = regressionCandidates(baseline[version].tests, tests.tests, renamedTitles(diff, testsConfig), testsConfig.titleSeparator);
+			const suiteResults = readJson(output);
+			// An edit regression is an individual codebase verification that fails every re-execution, under its new
+			// title when the diff renamed it, or a removed verification. One that passes a re-execution is a flaky
+			// verification. judgeLostVerificationTitles gives each lost verification title one re-execution, up to its
+			// limit per verification file, and reports a verification file that stopped partway.
+			const {verificationSuite} = loadCodebase();
+			const {reexecute, files} = editRegressionCandidates(preEditResults[codebaseVersion].verifications, suiteResults.verifications, renamedVerificationTitles(diff, verificationSuite), verificationSuite.verificationTitleSeparator);
 			const stoppedPartway = [];
 			const failing = [
-				...rerun.filter(name => rerunTest(run.directory, name) === 0),
-				...files.flatMap(({file, lostTitles}) => {
-					const judged = judgeLostTitles(lostTitles, title => rerunTest(run.directory, title, 1) === 1);
+				...reexecute.filter(title => reexecuteVerification(agentTaskRun.directory, title) === 0),
+				...files.flatMap(({file, lostVerificationTitles}) => {
+					const judged = judgeLostVerificationTitles(lostVerificationTitles, title => reexecuteVerification(agentTaskRun.directory, title, 1) === 1);
 					if (judged.stoppedPartway) {
 						stoppedPartway.push(file);
 					}
 
-					return Array.from({length: judged.removed}, () => `${file} (test removed)`);
+					return Array.from({length: judged.removedVerifications}, () => `${file} (verification removed)`);
 				}),
 			];
-			row.testFilesStoppedPartway = stoppedPartway.join('; ');
-			row.typecheck = tests.typecheck;
-			row.testRegressions = failing.length;
-			row.regressedTests = failing.join('; ');
-			if (task.hiddenTest) {
-				const hidden = Object.entries(tests.tests).filter(([name]) => isHiddenTest(name));
-				row.hiddenTestPassed = hidden.length > 0 && hidden.every(([, passed]) => passed);
+			row.verificationFilesStoppedPartway = stoppedPartway.join('; ');
+			row.typecheck = suiteResults.typecheck;
+			row.editRegressions = failing.length;
+			row.regressedVerifications = failing.join('; ');
+			if (task.withheldAcceptanceTest) {
+				const withheld = Object.entries(suiteResults.verifications).filter(([title]) => isWithheldAcceptanceTest(title));
+				row.withheldAcceptanceTestPassed = withheld.length > 0 && withheld.every(([, passed]) => passed);
 			}
 
 			row.success = editSuccess(row);
@@ -161,14 +168,15 @@ for (const [runId, {version, task: taskId}] of Object.entries(runKey)) {
 	scored.push(row);
 }
 
-// Scores carry no version, so nothing a person opens before the blind review shows one. summarize-agents.mjs joins them to the key.
-writeJson(path.join(runsDir, 'scores.json'), scored.map(({version, ...score}) => score));
+// Scores carry no codebase version, so nothing a person opens before the blind edits-review shows one.
+// summarize-agents.mjs joins them to the key.
+writeJson(path.join(agentTaskRunsDir, 'scores.json'), scored.map(({codebaseVersion, ...score}) => score));
 
-// Blind review sheet: rows already there stay as written, with their answers. New runs follow, shuffled, with no version.
-const sheetFile = path.join(resultsDir, 'blind-review.csv');
+// Blind edits-review sheet: rows already there stay as written, with their answers. New agent task runs follow,
+// shuffled, with no codebase version.
+const sheetFile = path.join(resultsDir, 'blind-edits-review.csv');
 const existingRows = fs.existsSync(sheetFile) ? fromCsv(fs.readFileSync(sheetFile, 'utf8')) : [];
-const relativeRunFile = (runId, name) => path.relative(projectRoot, path.join(runsDir, runId, name));
-const sheet = blindSheetRows(existingRows, scored.map(row => ({runId: row.runId, task: row.task, diff: relativeRunFile(row.runId, 'diff.patch'), finalReply: relativeRunFile(row.runId, 'final.md')})));
-fs.writeFileSync(sheetFile, toCsv([blindSheetColumns, ...sheet]));
-console.log(`Wrote ${path.relative(projectRoot, sheetFile)} (${sheet.length} runs). Fill wrong_edits with yes or no on each row, then run node scripts/summarize-agents.mjs.`);
-
+const relativeAgentTaskRunFile = (agentTaskRunId, name) => path.relative(projectRoot, path.join(agentTaskRunsDir, agentTaskRunId, name));
+const sheet = blindEditsReviewSheetRows(existingRows, scored.map(row => ({agentTaskRunId: row.agentTaskRunId, task: row.task, diff: relativeAgentTaskRunFile(row.agentTaskRunId, 'diff.patch'), finalReply: relativeAgentTaskRunFile(row.agentTaskRunId, 'final.md')})));
+fs.writeFileSync(sheetFile, toCsv([blindEditsReviewSheetColumns, ...sheet]));
+console.log(`Wrote ${path.relative(projectRoot, sheetFile)} (${sheet.length} agent task runs). Fill wrong_edits with yes or no on each row, then run node scripts/summarize-agents.mjs.`);
