@@ -1,6 +1,6 @@
 # Vocabulary
 
-One term per concept, used in every document, comment, self-test name, commit message, and result file in this repository. The **Retired** column lists the words that the term replaces; a line added to a markdown file never contains one of them. The table is the machine form: a check reads the Retired column from this file and holds no copy of its own.
+One term per concept, used in every document, comment, self-test name, commit message, and result file in this repository. The **Retired** column lists the words that the term replaces; a line added to a markdown file never contains one of them. The Retired column is the one list of retired words.
 
 ## The experiment
 
@@ -43,12 +43,12 @@ One term per concept, used in every document, comment, self-test name, commit me
 | adjudication | A yes or no on each disagreement, from a person or an AI stand-in. Until every disagreement has one, the ground truth is provisional. | resolution, arbitration, tie-break |
 | adjudicator | The person or AI stand-in who gave an adjudication. | arbiter, tie-breaker, decider |
 | provisional | The state of a ground truth with at least one disagreement that has no adjudication. | draft, preliminary, incomplete, tentative |
-| line kind | The kind of text a ground truth line holds: one of the kinds in the line kinds table. A text line takes the kind the tagging sheet records for it. A name line takes the kind of the declaration its name refers to, as the type checker reports it. A line that holds two kinds has both. | line type, line category, token kind |
+| line kind | The kind of text a ground truth line holds: one of the kinds in the line kinds table. A text line is a comment or a string. A name line takes the line kind of the declaration its name refers to. A line that holds two kinds has both. | line type, line category, token kind |
 | declaration kind | The kind the type checker reports for the declaration a name refers to, such as property, parameter, or method. The line kinds table maps each declaration kind to a line kind. | symbol kind, element kind |
 
 ### Line kinds
 
-The TypeScript kinds column is the machine form of the mapping from a declaration kind to a line kind. A declaration kind the column lacks maps to `other`. The ground truth script and the summary script read this table, and stop when the heading, the Kind or TypeScript kinds column, or the rows are missing. The ground truth script prints each declaration kind it mapped to `other`, with its line count.
+The TypeScript kinds column is the machine form of the mapping from a declaration kind to a line kind. A declaration kind the column lacks maps to `other`.
 
 | Kind | Meaning | TypeScript kinds | Retired |
 |---|---|---|---|
@@ -81,8 +81,8 @@ The TypeScript kinds column is the machine form of the mapping from a declaratio
 | agent search tool call | A search command the agent used in an agent task run. | search call |
 | sandbox | The operating system boundary that Claude Code puts around each shell command the agent runs in a local agent task run (Seatbelt on macOS). | jail, container, isolation |
 | file tool limit | The confinement of the agent's file tools (Read, Edit, Write, Grep, Glob) to the agent task run copy in a local agent task run. | file tool sandbox, tool fence |
-| temporary folder | A folder inside the project where a command the scripts start, or a local agent task run, writes its temporary files and npm cache, in place of the system's temporary folder and the home directory. Each local agent task run has its own. | scratch folder |
-| fence check | The check that starts one agent the way a local agent task run does and asks it to write and read outside its agent task run copy. It passes when every outside call fails. | sandbox test, escape test |
+| temporary folder | A folder inside the project for the temporary files and npm cache of a local agent task run or a script's command, in place of the system's temporary folder and the home directory. Each local agent task run has its own. | scratch folder |
+| fence check | The check that an agent in a local agent task run can write and read nothing outside its agent task run copy. | sandbox test, escape test |
 | key | The file that maps each agent task run id to its codebase version and task. | mapping, lookup, index, legend |
 | blind edits-review | A pass over agent task run diffs with no codebase version shown, by a person or an AI stand-in, to mark wrong edits before anyone reads the key. An AI stand-in reads only each agent task run's task prompt, diff, and final reply. Each note it writes on the sheet starts with "AI stand-in". | blind review, blinded review, masked review |
 | blind edits-review sheet | The list of every agent task run, one row each, in shuffled order with no codebase version. Whoever does the blind edits-review writes yes or no in the wrong_edits column. | blind review sheet, judging sheet, blind sheet, review form |
@@ -90,8 +90,8 @@ The TypeScript kinds column is the machine form of the mapping from a declaratio
 | routine | A saved claude.ai configuration of a prompt, a repository, and an API trigger. One routine exists per task and codebase version. | scheduled task, automation, job, workflow |
 | cloud agent task run repository | The private GitHub repository that holds one codebase version for cloud agent task runs: the codebase version's files and the start hook, as one commit. Its name shows no codebase version. | run repository, cloud repository, mirror, copy of the version |
 | cloud agent task run branch | The branch that a cloud agent task run pushes its changes and reply file to. | run branch, result branch, output branch, answer branch |
-| reply file | The file in which a cloud agent task run writes its final reply, because the fire request returns no reply. | answer file, output file, result file |
-| start hook | The small file in each cloud agent task run repository that installs dependencies and compiles when a cloud agent task run starts, so the agent can run the type check and the codebase verification suite. Both codebase versions carry the same hook. | setup script, bootstrap, init script |
+| reply file | The file in which a cloud agent task run writes its final reply. | answer file, output file |
+| start hook | The file in each cloud agent task run repository that prepares the codebase when a cloud agent task run starts. Both codebase versions carry the same hook. | setup script, bootstrap, init script |
 | pending agent task run | A fired cloud agent task run whose cloud agent task run branch has not appeared. | pending run, queued run, waiting run, in-flight run |
 | transcript | The agent's full event stream for one agent task run, as newline-delimited JSON. | log, trace, session log, output |
 | final reply | The agent's last message in an agent task run. | final answer, response, result text, output |
