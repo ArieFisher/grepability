@@ -43,10 +43,13 @@ At least that’s the narrative.  But can we test it?  Can we go further and mea
 2. **Create ground truth**: Make a copy of the codebase and edit it such that each concept in it carries only a single name. The edits were made such that they did not change behaviour or line number.\
    \
    For example, Ky has a concept of `delay` that is referred to in variants of retry, rate limit, sleep, number… and they were all given a common name:\
-   e.g. `retryAfter` —&gt; `retryAfterDelay`, `rateLimitReset` —&gt; `rateLimitResetDelay`, `“// Must return a non-negative number...”` —&gt; `”// Must return a non-negative delay”` , …
+   e.g. `retryAfter` —&gt; `retryAfterDelay`, `rateLimitReset` —&gt; `rateLimitResetDelay`, `“// Must return a non-negative number...”` —&gt; `”// Must return a non-negative delay”` , …\
+   \
+   Likewise, where the codebase used the word `delay` for concepts other than ‘retry delay’, the edit renamed them to something closer to their conceptual meaning (e.g. `sleep`).  \
+   \
+   The first kind of edit made the concept easier to find, and the second kind made the things it found more conceptually relevant. 
 
-
-3. **Design a measure** for grepability
+1. **Design a measure** for grepability
 
    `grepability` was defined as a blend of 2 metrics[^1]:
 
@@ -66,15 +69,15 @@ At least that’s the narrative.  But can we test it?  Can we go further and mea
      - **Interpretation**: A high score means that the concepts’ terms are **distinguished**. So a concept that was represented by a broad term (such as “rate") that matches every line of the concept - along with hundreds of unrelated lines - would hurt the ‘grepability’ of this code base.\
        A low score indicates the need to refactor by choosing concept names that are more distinguishing.
 
-4. **Measure (`search score`)**: the grepability of the two versions of that codebase (the published Ky as it is right now, and, the copy of it where concept names have been harmonized).
+2. **Measure (`search score`)**: the grepability of the two versions of that codebase (the published Ky as it is right now, and, the copy of it where concept names have been harmonized).
 
-5. **Test** if the *same prompts* are *more effective* on a grepable codebase (`agentic effectiveness score`)
+3. **Test** if the *same prompts* are *more effective* on a grepable codebase (`agentic effectiveness score`)
 
    *Approach:*
 
    - Two Claude Code agents were given the *same task* (i.e. the same prompt) and one of the two codebases.
    - Each task was repeated ten times. So 20 agents were given the *same* prompt: ten asked to work on the original codebase as published, ten on the edited one.
-   - This set of 20 agent task runs was repeated twice more, but with an increasingly complicated task.  So 20 agents were run 3 times, given increasingly complicated tasks to do.[^2]
+   - This set of 20 agent task runs was repeated twice more, but with an increasingly complicated task. So 20 agents were run 3 times, given increasingly complicated tasks to do.[^2]
    - After all 60 agent task runs completed, their output was collated and scored
 
 **Task 1: Find**
